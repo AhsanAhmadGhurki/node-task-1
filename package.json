@@ -1,0 +1,17 @@
+{
+  "name": "tasks-api",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --env-file=.env src/index.js",
+    "dev": "node --watch --env-file=.env src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Tasks REST API — Express + MongoDB",
+  "dependencies": {
+    "express": "^5.2.1",
+    "mongoose": "^9.10.3"
+  }
+}
