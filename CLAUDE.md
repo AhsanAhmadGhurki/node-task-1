@@ -4,32 +4,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Tasks REST API built on Express 5 + Mongoose 9 (MongoDB), CommonJS modules. There is no build step, linter, or test suite configured.
+Two separate apps:
+- **`backend/`**: Tasks REST API built on Express 5 + Mongoose 9 (MongoDB), CommonJS, with JWT auth (bcryptjs + jsonwebtoken). No build step, linter, or test suite.
+- **`frontend/`**: React + Vite single-page app (ESM) for manually testing register, login and tasks in the browser. It has no router; everything is in `src/App.jsx`.
 
 ## Commands
 
+Backend (run from `backend/`):
 - `npm run dev`: run with `node --watch` (auto-restart on file changes)
 - `npm start`: run normally
 
-Both use Node's built-in `--env-file=.env` (no dotenv package), so a `.env` file must exist. Copy `.env.example` and set `PORT` (default 4000), `MONGO_URI`, and `API_KEY`.
+Both use Node's built-in `--env-file=.env` (no dotenv package), so `backend/.env` must exist with `PORT` (default 4000), `MONGO_URI`, `API_KEY` and `JWT_SECRET`.
 
-Every request needs an `x-api-key` header matching `API_KEY`, e.g.:
+Frontend (run from `frontend/`):
+- `npm run dev`: Vite dev server on http://localhost:5173
+- `npm run build`, `npm run lint` (oxlint)
+
+`frontend/.env` must contain `API_KEY` with the same value as the backend's.
+
+Every API request needs an `x-api-key` header. `/tasks` routes also need `Authorization: Bearer <token>` from `POST /auth/login`:
 ```
-curl -H "x-api-key: $API_KEY" http://localhost:4000/tasks
+curl -H "x-api-key: $API_KEY" -H "Authorization: Bearer $TOKEN" http://localhost:4000/tasks
 ```
 
-## Architecture
+## Frontend ↔ backend
 
-Layered flow: `routes → (validation middleware) → controllers → services → models`.
+The browser never calls `localhost:4000` directly. `frontend/src/api.js` fetches `/api/...`, and the Vite proxy in `frontend/vite.config.js` strips `/api`, forwards the request to the backend, and **adds the `x-api-key` header server-side** (read with `loadEnv` and no `VITE_` prefix). Because of this, the backend has no CORS middleware and the API key never reaches the browser bundle. Don't expose it with a `VITE_` variable.
 
-- **`src/index.js`** connects to MongoDB first, then starts the server. It exits the process if either step fails. **`src/app.js`** only builds the Express app, so it can be imported without starting a server.
-- **Middleware order in `app.js` matters:** `express.json` → logger → API key check (after the logger so rejected requests still get logged) → `/tasks` routes → 404 handler → central error handler (always last).
-- **Config:** `process.env` is read only in `src/config/index.js`. Everything else imports that config module.
-- **Separation of concerns:** controllers handle req/res and never touch Mongoose. All DB access goes through `src/services/taskService.js`.
-- **Error handling:** controllers wrap their logic in try/catch and call `next(err)`. Services throw `NotFoundError` (from `src/utils/`, it carries `statusCode = 404`). `src/middleware/errorHandler.js` maps Mongoose `CastError` (bad ObjectId or bad type) and `ValidationError` to 400, uses `err.statusCode` when it's set, and returns 500 otherwise. Every error response has the shape `{ message }`. To add a new HTTP error type, create an Error subclass with a `statusCode`.
-- **Validation is two-layered:** `src/middleware/validation.js` checks the POST body before it reaches the controller. The Mongoose schema rules (`required`, `trim`) also apply on updates because `findByIdAndUpdate` is called with `runValidators: true`.
+## Backend architecture
+
+Layered flow: `routes → (validation middleware) → controllers → services → models`. All paths below are under `backend/src/`.
+
+- **`index.js`** connects to MongoDB first, then starts the server. It exits the process if either step fails. **`app.js`** only builds the Express app, so it can be imported without starting a server.
+- **Middleware order in `app.js` matters:** `express.json` → logger → API key check (global, after the logger so rejected requests still get logged) → `/tasks` (with `authMiddleware`) → `/auth` (no JWT check, since login is where the token is issued) → 404 handler → central error handler (always last).
+- **Auth:** `services/authService.js` hashes passwords with bcrypt on register, and on login compares the password and signs a JWT with `{ sub: user.id }` (1-hour expiry). `middleware/auth.js` verifies `Bearer` tokens (HS256 only) and sets `req.user = { id }`. The `User` model's `toJSON` removes `password`, so it's safe to return user documents. Login gives the same 401 message for an unknown email and a wrong password.
+- **Config:** `process.env` is read only in `config/index.js`. Everything else imports that config module.
+- **Separation of concerns:** controllers handle req/res and never touch Mongoose. All DB access goes through `services/`.
+- **Error handling:** controllers wrap their logic in try/catch and call `next(err)`. Services and middleware throw the Error subclasses in `utils/` (`NotFoundError` 404, `UnauthorizedError` 401, `ConflictError` 409), each carrying a `statusCode`. `middleware/errorHandler.js` maps Mongoose `CastError` and `ValidationError` to 400 and MongoDB duplicate-key errors (`11000`) to 409, uses `err.statusCode` when it's set, and returns 500 otherwise. Every error response has the shape `{ message }`.
+- **Validation is two-layered:** `middleware/validation.js` checks request bodies before they reach the controller (`validateCreateTask`, `validateAuth`). The Mongoose schema rules also apply on updates because `findByIdAndUpdate` is called with `runValidators: true`.
 - **Express 5 specifics:** `req.body` is `undefined` when no body is sent, so code guards with `req.body || {}`. `app.listen` reports startup errors (such as a port already in use) through its callback's `error` argument.
 - **Partial updates:** PUT only changes fields that are `!== undefined`, so `completed: false` still counts as a real update.
+- **Tasks are not scoped per user yet:** `req.user.id` is set, but `Task` has no owner field.
 
 ## Conventions
 
