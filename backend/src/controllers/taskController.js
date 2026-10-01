@@ -1,10 +1,11 @@
 // controller ka kaam: req se data nikalo, service ko do, res bhejo
 const taskService = require("../services/taskService");
 
-// GET /tasks — saare tasks JSON mein bhejo
+// GET /tasks — logged-in user ke saare tasks JSON mein bhejo
 async function getTasks(req, res, next) {
   try {
-    const tasks = await taskService.getAllTasks();
+    // user id JWT se (authMiddleware) — query string ya body se nahi
+    const tasks = await taskService.getAllTasks(req.user.id);
 
     res.status(200).json(tasks);
   } catch (err) {
@@ -16,7 +17,8 @@ async function getTasks(req, res, next) {
 async function getTask(req, res, next) {
   try {
     // await — jab tak database jawab na de, yahin ruko
-    const task = await taskService.getTaskById(req.params.id);
+    // id URL se, owner JWT se — dono milein tabhi task milega
+    const task = await taskService.getTaskById(req.params.id, req.user.id);
 
     res.status(200).json(task);
   } catch (err) {
@@ -29,9 +31,11 @@ async function getTask(req, res, next) {
 async function createTask(req, res, next) {
   try {
     // validateCreateTask pehle hi check kar chuka hai — yahan title hamesha sahi hai
+    // body se sirf title aur completed — body mein "user" bheja ho to bhi ignore hota hai
     const { title, completed } = req.body;
 
-    const newTask = await taskService.createTask({ title, completed });
+    // owner hamesha verified JWT se (authMiddleware ne req.user lagaya) — client par bharosa nahi
+    const newTask = await taskService.createTask({ title, completed, user: req.user.id });
 
     // 201 = naya resource ban gaya
     res.status(201).json(newTask);
@@ -43,7 +47,7 @@ async function createTask(req, res, next) {
 // PUT /tasks/:id — body: { "title": "...", "completed": true }
 async function updateTask(req, res, next) {
   try {
-    const task = await taskService.updateTask(req.params.id, req.body || {});
+    const task = await taskService.updateTask(req.params.id, req.user.id, req.body || {});
 
     res.status(200).json(task);
   } catch (err) {
@@ -54,7 +58,7 @@ async function updateTask(req, res, next) {
 // DELETE /tasks/:id
 async function deleteTask(req, res, next) {
   try {
-    const deletedTask = await taskService.deleteTask(req.params.id);
+    const deletedTask = await taskService.deleteTask(req.params.id, req.user.id);
 
     res.status(200).json({ message: "Task deleted", task: deletedTask });
   } catch (err) {

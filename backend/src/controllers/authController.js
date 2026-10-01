@@ -29,7 +29,31 @@ async function login(req, res, next) {
   }
 }
 
+// GET /verify/:token — email wala link yahan aata hai
+async function verifyEmail(req, res, next) {
+  try {
+    await authService.verifyEmail(req.params.token);
+
+    res.status(200).json({ message: "Email verified successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /resend-verification — body: { "email": "..." }
+async function resendVerification(req, res, next) {
+  try {
+    const { message } = await authService.resendVerification(req.body.email);
+
+    res.status(200).json({ message });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   register,
-  login
+  login,
+  verifyEmail,
+  resendVerification
 };

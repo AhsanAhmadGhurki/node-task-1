@@ -7,6 +7,7 @@ const notFoundMiddleware = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
 const taskRoutes = require("./routes/taskRoutes");
 const authRoutes = require("./routes/authRoutes");
+const verificationRoutes = require("./routes/verificationRoutes");
 
 const app = express();
 
@@ -16,6 +17,9 @@ app.use(express.json());
 // har request log karo — routes se pehle hona zaroori hai
 app.use(loggingMiddleware);
 
+// GET /verify/:token — API key se pehle, kyunki email ka link browser mein bina header ke khulta hai
+app.use(verificationRoutes.publicRouter);
+
 // logger ke baad — taake reject hone wali requests bhi log hon
 app.use(apiKeyMiddleware);
 
@@ -24,6 +28,9 @@ app.use("/tasks", authMiddleware, taskRoutes);
 
 // /auth/register aur /auth/login
 app.use("/auth", authRoutes);
+
+// POST /resend-verification
+app.use(verificationRoutes.router);
 
 // koi route match nahi hua
 app.use(notFoundMiddleware);

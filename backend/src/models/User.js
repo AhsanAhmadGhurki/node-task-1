@@ -16,15 +16,26 @@ const userSchema = new mongoose.Schema(
       type: String,
       // yahan asal password nahi, bcrypt ka hash save hota hai
       required: true
-    }
+    },
+    isVerified: {
+      type: Boolean,
+      // naya user email verify hone tak unverified rehta hai
+      default: false
+    },
+    // verification token ka SHA-256 hash — asal token sirf link mein jaata hai, DB mein kabhi nahi
+    verificationTokenHash: String,
+    // is waqt ke baad link kaam nahi karega (register/resend se 24 ghante)
+    verificationTokenExpires: Date
   },
   {
     // createdAt aur updatedAt khud ban jaate hain
     timestamps: true,
     toJSON: {
-      // res.json(user) mein hash kabhi bahar na jaye
+      // res.json(user) mein password ya token ka hash kabhi bahar na jaye
       transform(doc, ret) {
         delete ret.password;
+        delete ret.verificationTokenHash;
+        delete ret.verificationTokenExpires;
         return ret;
       }
     }

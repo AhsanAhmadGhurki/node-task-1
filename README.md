@@ -33,11 +33,13 @@ Open http://localhost:5173 to register, log in, and load tasks.
 
 ## API
 
-All requests need an `x-api-key` header. `/tasks` also needs `Authorization: Bearer <token>`.
+All requests need an `x-api-key` header, except `GET /verify/:token`, which is opened from the link in a browser. `/tasks` also needs `Authorization: Bearer <token>`.
 
 | Method | Path | Auth |
 |---|---|---|
-| POST | `/auth/register` | API key |
+| POST | `/auth/register` | API key. The password needs 8+ characters and a number. Logs a verification link to the console |
+| GET | `/verify/:token` | public. The link expires after 24h and works only once |
+| POST | `/resend-verification` | API key, body `{ email }`. Logs a new link, and the old one stops working |
 | POST | `/auth/login` | API key, returns `{ token, user }` |
 | GET / POST | `/tasks` | API key + JWT |
 | GET / PUT / DELETE | `/tasks/:id` | API key + JWT |
