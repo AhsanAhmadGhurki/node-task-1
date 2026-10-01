@@ -14,6 +14,23 @@ function validateCreateTask(req, res, next) {
   next();
 }
 
+// POST /auth/register aur /auth/login — email aur password dono zaroori hain
+function validateAuth(req, res, next) {
+  const { email, password } = req.body || {};
+
+  if (typeof email !== "string" || email.trim() === "") {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  // password trim nahi karte — spaces bhi password ka hissa ho sakte hain
+  if (typeof password !== "string" || password === "") {
+    return res.status(400).json({ message: "Password is required" });
+  }
+
+  next();
+}
+
 module.exports = {
-  validateCreateTask
+  validateCreateTask,
+  validateAuth
 };

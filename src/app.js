@@ -2,9 +2,11 @@
 const express = require("express");
 const loggingMiddleware = require("./middleware/logger");
 const apiKeyMiddleware = require("./middleware/apiKey");
+const authMiddleware = require("./middleware/auth");
 const notFoundMiddleware = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
 const taskRoutes = require("./routes/taskRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 
@@ -17,8 +19,11 @@ app.use(loggingMiddleware);
 // logger ke baad — taake reject hone wali requests bhi log hon
 app.use(apiKeyMiddleware);
 
-// /tasks se shuru hone wali har request taskRoutes ke paas
-app.use("/tasks", taskRoutes);
+// /tasks se shuru hone wali har request — pehle token check, phir taskRoutes ke paas
+app.use("/tasks", authMiddleware, taskRoutes);
+
+// /auth/register aur /auth/login
+app.use("/auth", authRoutes);
 
 // koi route match nahi hua
 app.use(notFoundMiddleware);
