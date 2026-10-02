@@ -1,10 +1,11 @@
 // controller ka kaam: req se data nikalo, service ko do, res bhejo
 const authService = require("../services/authService");
+const { respondPage } = require("../views/verifyPage");
 
-// POST /auth/register — body: { "email": "...", "password": "..." }
+// POST /register — body: { "email": "...", "password": "..." }
 async function register(req, res, next) {
   try {
-    // validateAuth pehle hi check kar chuka hai — email aur password hamesha string hain
+    // validateRegister pehle hi check kar chuka hai — email sahi shakal ki, password rules ke mutabiq
     const { email, password } = req.body;
 
     const user = await authService.register({ email, password });
@@ -30,24 +31,38 @@ async function login(req, res, next) {
 }
 
 // GET /verify/:token — email wala link yahan aata hai
+// browser (email ka link) ko HTML page, API client (curl/tests) ko JSON — respondPage Accept header se faisla karta hai
 async function verifyEmail(req, res, next) {
   try {
     await authService.verifyEmail(req.params.token);
 
-    res.status(200).json({ message: "Email verified successfully" });
+    respondPage(res, 200, {
+      ok: true,
+      title: "Email verified",
+      message: "Email verified successfully",
+      pageMessage: "Your email has been verified. You can now log in."
+    });
   } catch (err) {
-    next(err);
+    // 400/410 jaise jaane pehchane errors — user ko saaf page aur naya link mangwane ka form; baaki (500) central handler ko
+    if (!err.statusCode) {
+      return next(err);
+    }
+    respondPage(res, err.statusCode, { ok: false, title: "Verification failed", message: err.message, showResend: true });
   }
 }
 
-// POST /resend-verification — body: { "email": "..." }
+// POST /resend-verification (API, body JSON) aur POST /verify/resend (page ka form) — body: { "email": "..." }
 async function resendVerification(req, res, next) {
   try {
     const { message } = await authService.resendVerification(req.body.email);
 
-    res.status(200).json({ message });
+    respondPage(res, 200, { ok: true, title: "Check your email", message });
   } catch (err) {
-    next(err);
+    // 429 (cooldown) waghaira — form wale ko page, dobara try karne ke liye form ke saath
+    if (!err.statusCode) {
+      return next(err);
+    }
+    respondPage(res, err.statusCode, { ok: false, title: "Please wait", message: err.message, showResend: true });
   }
 }
 

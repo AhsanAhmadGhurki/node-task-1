@@ -34,6 +34,8 @@ function App() {
   const [tasks, setTasks] = useState(null)
   const [message, setMessage] = useState(null)
   const [loading, setLoading] = useState(false)
+  // kis email ke liye "Resend verification email" button dikhana hai — null = button chhupa
+  const [resendFor, setResendFor] = useState(null)
 
   // har response ka status + message dikhao — taake masla foran nazar aaye
   function show(res, successText) {
@@ -49,9 +51,12 @@ function App() {
     const path = tab === 'register' ? '/register' : '/auth/login'
     const res = await api('POST', path, { email, password })
 
+    // email nahi mili / pehle register tha (409) / unverified login (403) — teeno mein resend ka rasta do
+    setResendFor((tab === 'register' && (res.ok || res.status === 409)) || res.status === 403 ? email : null)
+
     if (tab === 'register') {
-      // login se pehle verify zaroori — link backend ke terminal mein aata hai
-      show(res, `User registered: ${res.data?.email}. Backend terminal mein verification link kholein, phir login karein.`)
+      // login se pehle verify zaroori — link email par jaata hai
+      show(res, `User registered: ${res.data?.email}. Apna email inbox (ya Spam) check karein aur "Verify email" par click karein, phir login karein.`)
       if (res.ok) {
         setTab('login')
         setPassword('')
@@ -67,6 +72,14 @@ function App() {
     }
 
     setLoading(false)
+  }
+
+  async function resendVerification() {
+    setLoading(true)
+    const res = await api('POST', '/resend-verification', { email: resendFor })
+    setLoading(false)
+    // backend ka message hi dikhao — "sent", "already verified", "wait 42 seconds", waghaira
+    show(res, res.data?.message)
   }
 
   async function loadTasks() {
@@ -131,10 +144,10 @@ function App() {
         ) : (
           <section>
             <div className="tabs">
-              <button className={tab === 'login' ? 'active' : ''} onClick={() => { setTab('login'); setMessage(null) }}>
+              <button className={tab === 'login' ? 'active' : ''} onClick={() => { setTab('login'); setMessage(null); setResendFor(null) }}>
                 Login
               </button>
-              <button className={tab === 'register' ? 'active' : ''} onClick={() => { setTab('register'); setMessage(null) }}>
+              <button className={tab === 'register' ? 'active' : ''} onClick={() => { setTab('register'); setMessage(null); setResendFor(null) }}>
                 Register
               </button>
             </div>
@@ -158,6 +171,15 @@ function App() {
                 {loading ? 'Please wait…' : tab === 'login' ? 'Login' : 'Register'}
               </button>
             </form>
+
+            {resendFor && (
+              <div className="resend">
+                <p className="muted">Verification email nahi mili ya link expire ho gaya?</p>
+                <button type="button" className="secondary" onClick={resendVerification} disabled={loading}>
+                  Resend verification email
+                </button>
+              </div>
+            )}
           </section>
         )}
       </div>

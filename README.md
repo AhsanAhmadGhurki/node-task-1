@@ -8,10 +8,15 @@ Express + MongoDB REST API with JWT auth (`backend/`) and a small React + Vite U
 
 ```
 PORT=3000
+APP_URL=http://localhost:3000   # public backend URL used in email links; change for production
 API_KEY=...
 MONGO_URI=...
 JWT_SECRET=...
+SMTP_USER=you@gmail.com      # optional: send real verification emails
+SMTP_PASS=xxxxxxxxxxxxxxxx   # Gmail App Password (not your normal password)
 ```
+
+Without `SMTP_USER`/`SMTP_PASS`, verification links are only printed to the backend console. For Gmail, turn on 2-Step Verification and create an App Password at https://myaccount.google.com/apppasswords.
 
 **Frontend**: copy `frontend/.env.example` to `frontend/.env` and set `API_KEY` to the same value as the backend's.
 
@@ -37,9 +42,12 @@ All requests need an `x-api-key` header, except `GET /verify/:token`, which is o
 
 | Method | Path | Auth |
 |---|---|---|
-| POST | `/register` | API key. The password needs 8+ characters and a number. Logs a verification link to the console |
+| POST | `/register` | API key. Needs a valid email, and a password with 8+ characters and a number. Emails the verification link (printed to the console only when SMTP is not configured) |
 | GET | `/verify/:token` | public. The link expires after 24h and works only once |
-| POST | `/resend-verification` | API key, body `{ email }`. Logs a new link, and the old one stops working |
+| POST | `/resend-verification` | API key, body `{ email }`. Emails a new link, and the old one stops working |
+| POST | `/verify/resend` | public, HTML form on the verification page. Same as `/resend-verification` |
 | POST | `/auth/login` | API key, returns `{ token, user }` |
 | GET / POST | `/tasks` | API key + JWT |
 | GET / PUT / DELETE | `/tasks/:id` | API key + JWT |
+
+**Rate limits:** each IP gets 5 resend requests per 15 minutes (shared by both resend routes) and 10 registrations per hour. Each email also gets at most one verification email per 60 seconds. Over the limit, the response is `429` with a `Retry-After` header.

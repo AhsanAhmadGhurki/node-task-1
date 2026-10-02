@@ -25,7 +25,10 @@ const userSchema = new mongoose.Schema(
     // verification token ka SHA-256 hash — asal token sirf link mein jaata hai, DB mein kabhi nahi
     verificationTokenHash: String,
     // is waqt ke baad link kaam nahi karega (register/resend se 24 ghante)
-    verificationTokenExpires: Date
+    verificationTokenExpires: Date,
+    // aakhri verification email kab bheji — resend par 60 second ka cooldown isi se
+    // DB mein hai taake server restart ya IP badalne se bhi cooldown na toote
+    verificationEmailSentAt: Date
   },
   {
     // createdAt aur updatedAt khud ban jaate hain
@@ -36,6 +39,7 @@ const userSchema = new mongoose.Schema(
         delete ret.password;
         delete ret.verificationTokenHash;
         delete ret.verificationTokenExpires;
+        delete ret.verificationEmailSentAt;
         return ret;
       }
     }

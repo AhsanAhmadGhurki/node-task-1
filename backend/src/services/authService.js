@@ -10,6 +10,7 @@ const UnauthorizedError = require("../utils/UnauthorizedError");
 const GoneError = require("../utils/GoneError");
 const BadRequestError = require("../utils/BadRequestError");
 const ForbiddenError = require("../utils/ForbiddenError");
+const TooManyRequestsError = require("../utils/TooManyRequestsError");
 
 // bcrypt ka cost — jitna zyada, utna slow (aur brute force utna mushkil)
 // purane cost-10 hashes bhi login par chalte hain — cost hash ke andar likha hota hai
@@ -20,6 +21,9 @@ const TOKEN_EXPIRES_IN = "1h";
 
 // verification link exactly 24 ghante chalega
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+// ek email par 60 second mein sirf ek verification email — IP badal kar bhi spam na ho sake
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 // SHA-256 hex — DB mein token ki jagah ye save hota hai
 // bcrypt nahi kyunki token pehle hi 256-bit random hai, aur hash se seedha dhoondna padta hai
@@ -58,10 +62,14 @@ async function register({ email, password }) {
     password: passwordHash,
     isVerified: false,
     verificationTokenHash: tokenHash,
-    verificationTokenExpires: expires
+    verificationTokenExpires: expires,
+    // register bhi email bhejta hai — foran resend par cooldown lagay
+    verificationEmailSentAt: new Date()
   });
 
   // user save hone ke baad hi link bhejo — save fail ho to link bekaar hota
+  // await nahi — Gmail ko 1-3 second lagte hain, response email ka intezar na kare
+  // (sendVerificationEmail apne errors khud pakadta hai, isliye unhandled rejection nahi hoga)
   emailService.sendVerificationEmail(user.email, token);
 
   return user;
@@ -115,10 +123,36 @@ async function resendVerification(email) {
 
   // naya token — purana hash overwrite ho jaata hai, isliye purana link foran band
   const { token, tokenHash, expires } = createVerificationToken();
-  user.verificationTokenHash = tokenHash;
-  user.verificationTokenExpires = expires;
-  await user.save();
+  const now = new Date();
+  const cooldownStart = new Date(now.getTime() - RESEND_COOLDOWN_MS);
 
+  // cooldown check aur update ek hi query mein — do requests ek saath aayein to bhi sirf ek email jaye
+  const result = await User.updateOne(
+    {
+      _id: user._id,
+      isVerified: false,
+      $or: [
+        { verificationEmailSentAt: { $exists: false } },
+        { verificationEmailSentAt: { $lte: cooldownStart } }
+      ]
+    },
+    {
+      $set: {
+        verificationTokenHash: tokenHash,
+        verificationTokenExpires: expires,
+        verificationEmailSentAt: now
+      }
+    }
+  );
+
+  if (result.modifiedCount === 0) {
+    // kitne second baaki — user ko bata do kab dobara try kare
+    const sentAt = user.verificationEmailSentAt ? user.verificationEmailSentAt.getTime() : now.getTime();
+    const waitSeconds = Math.max(1, Math.ceil((sentAt + RESEND_COOLDOWN_MS - now.getTime()) / 1000));
+    throw new TooManyRequestsError(`Please wait ${waitSeconds} seconds before requesting another verification email.`);
+  }
+
+  // background mein — register ki tarah response email ka intezar nahi karta
   emailService.sendVerificationEmail(user.email, token);
 
   return { message: "Verification link sent" };

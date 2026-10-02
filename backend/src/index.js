@@ -1,9 +1,18 @@
-// Tasks REST API — entry point: pehle database, phir server
+// Tasks REST API — entry point: pehle .env check, phir database, phir server
+const validateEnv = require("./config/validateEnv");
 const app = require("./app");
 const config = require("./config");
 const connectDB = require("./config/db");
 
 async function startServer() {
+  // .env mein kuch missing/galat ho to yahin ruk jao — DB connect ya server start karne ka faida nahi
+  const envErrors = validateEnv();
+  if (envErrors.length > 0) {
+    console.error("Server start nahi hua — backend/.env theek karein:");
+    envErrors.forEach((message) => console.error(`  - ${message}`));
+    process.exit(1);
+  }
+
   try {
     await connectDB();
 
