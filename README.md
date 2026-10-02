@@ -46,7 +46,9 @@ All requests need an `x-api-key` header, except `GET /verify/:token`, which is o
 | GET | `/verify/:token` | public. The link expires after 24h and works only once |
 | POST | `/resend-verification` | API key, body `{ email }`. Emails a new link, and the old one stops working |
 | POST | `/verify/resend` | public, HTML form on the verification page. Same as `/resend-verification` |
-| POST | `/auth/login` | API key, returns `{ token, user }` |
+| POST | `/auth/login` | API key. Returns `{ token, user }` (access token, 15 min) and sets an httpOnly `refreshToken` cookie (7 days) |
+| POST | `/auth/refresh` | API key + refresh cookie. Returns a new `{ token, user }` and rotates the cookie |
+| POST | `/auth/logout` | API key. Revokes the refresh token and clears the cookie |
 | GET / POST | `/tasks` | API key + JWT |
 | GET / PUT / DELETE | `/tasks/:id` | API key + JWT |
 

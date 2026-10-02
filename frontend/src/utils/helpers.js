@@ -14,15 +14,12 @@ export function isTokenExpired(token) {
 // session (token + user) localStorage mein — refresh ke baad bhi login rahe
 const SESSION_KEY = 'session'
 
-// expire ho chuka token wapas na lao — warna "Logged in" dikhega aur har request 401
+// access token expire ho chuka ho to bhi session rakho — axios refresh token (cookie) se naya le aata hai
+// refresh bhi fail ho tab hi logout (axios.js → AuthContext)
 export function loadSession() {
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY))
-    if (!session || isTokenExpired(session.token)) {
-      localStorage.removeItem(SESSION_KEY)
-      return null
-    }
-    return session
+    return session?.token ? session : null
   } catch {
     return null
   }

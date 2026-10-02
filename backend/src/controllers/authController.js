@@ -1,6 +1,7 @@
 // controller ka kaam: req se data nikalo, service ko do, res bhejo
 const authService = require("../services/authService");
 const { respondPage } = require("../views/verifyPage");
+const config = require("../config");
 
 // POST /register — body: { "email": "...", "password": "..." }
 async function register(req, res, next) {
@@ -17,14 +18,61 @@ async function register(req, res, next) {
   }
 }
 
+// refresh token ki cookie — httpOnly: JavaScript parh hi nahi sakti (XSS se chori nahi)
+// path /auth — sirf /auth/refresh aur /auth/logout par jaati hai, /tasks waghaira par nahi
+const REFRESH_COOKIE = "refreshToken";
+const refreshCookieOptions = {
+  httpOnly: true,
+  // dusri site se aayi request par cookie nahi jaati (CSRF se bachao)
+  sameSite: "strict",
+  // https par hi bhejo — localhost (http) par development ke liye band
+  secure: config.appUrl.startsWith("https://"),
+  path: "/auth"
+};
+
+function setRefreshCookie(res, refreshToken) {
+  // maxAge milliseconds mein — DB wali expiry ke barabar
+  res.cookie(REFRESH_COOKIE, refreshToken, { ...refreshCookieOptions, maxAge: authService.REFRESH_TOKEN_TTL_MS });
+}
+
 // POST /auth/login — body: { "email": "...", "password": "..." }
 async function login(req, res, next) {
   try {
     const { email, password } = req.body;
 
-    const { token, user } = await authService.login({ email, password });
+    const { token, refreshToken, user } = await authService.login({ email, password });
 
+    // refresh token sirf cookie mein — JSON body mein kabhi nahi
+    setRefreshCookie(res, refreshToken);
     res.status(200).json({ token, user });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /auth/refresh — body nahi, refresh token cookie se aata hai
+async function refresh(req, res, next) {
+  try {
+    const { token, refreshToken, user } = await authService.refreshSession(req.cookies[REFRESH_COOKIE]);
+
+    // rotation — naya refresh token cookie mein, purana DB mein band ho chuka
+    setRefreshCookie(res, refreshToken);
+    res.status(200).json({ token, user });
+  } catch (err) {
+    // fail par cookie NAHI mitaate — do tab ek saath refresh karein to doosre tab ki fail request
+    // pehle tab ki abhi abhi aayi nayi (sahi) cookie mita deti aur dono logout ho jaate
+    // galat cookie pade rehne se koi nuqsan nahi — agla login use overwrite kar deta hai
+    next(err);
+  }
+}
+
+// POST /auth/logout — refresh token band aur cookie saaf
+async function logout(req, res, next) {
+  try {
+    await authService.logout(req.cookies[REFRESH_COOKIE]);
+
+    res.clearCookie(REFRESH_COOKIE, refreshCookieOptions);
+    res.status(200).json({ message: "Logged out" });
   } catch (err) {
     next(err);
   }
@@ -69,6 +117,8 @@ async function resendVerification(req, res, next) {
 module.exports = {
   register,
   login,
+  refresh,
+  logout,
   verifyEmail,
   resendVerification
 };

@@ -1,5 +1,6 @@
 // Express app yahan banti hai — server start index.js karta hai
 const express = require("express");
+const cookieParser = require("cookie-parser");
 const loggingMiddleware = require("./middleware/logger");
 const apiKeyMiddleware = require("./middleware/apiKey");
 const authMiddleware = require("./middleware/auth");
@@ -13,6 +14,9 @@ const app = express();
 
 // JSON body padhne ke liye
 app.use(express.json());
+
+// cookies padhne ke liye — refresh token httpOnly cookie mein aata hai (req.cookies)
+app.use(cookieParser());
 
 // har request log karo — routes se pehle hona zaroori hai
 app.use(loggingMiddleware);

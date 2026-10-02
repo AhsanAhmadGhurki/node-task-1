@@ -12,4 +12,8 @@ const router = express.Router();
 router.post("/register", registerLimiter, validateRegister, authController.register);
 router.post("/auth/login", validateAuth, authController.login);
 
+// body nahi chahiye — refresh token httpOnly cookie se aata hai
+router.post("/auth/refresh", authController.refresh);
+router.post("/auth/logout", authController.logout);
+
 module.exports = router;

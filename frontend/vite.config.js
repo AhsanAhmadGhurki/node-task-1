@@ -17,6 +17,9 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api/, ''),
           // API key yahin (Node mein) lagti hai — frontend code mein kabhi nahi
           headers: { 'x-api-key': env.API_KEY },
+          // backend refresh cookie "Path=/auth" par lagata hai, lekin browser "/api/auth/..." dekhta hai
+          // path na badla to browser cookie /api/auth/refresh par bhejta hi nahi
+          cookiePathRewrite: { '/auth': '/api/auth' },
         },
       },
     },

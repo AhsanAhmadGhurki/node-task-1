@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const RefreshToken = require("../models/RefreshToken");
 const config = require("../config");
 const emailService = require("./emailService");
 const ConflictError = require("../utils/ConflictError");
@@ -16,8 +17,16 @@ const TooManyRequestsError = require("../utils/TooManyRequestsError");
 // purane cost-10 hashes bhi login par chalte hain — cost hash ke andar likha hota hai
 const SALT_ROUNDS = 12;
 
-// token kitni der chalega
-const TOKEN_EXPIRES_IN = "1h";
+// access token (JWT) chhota — chori ho bhi jaye to 15 minute mein bekaar
+// expire hone par frontend refresh token se chupke se naya le leta hai
+const ACCESS_TOKEN_EXPIRES_IN = "15m";
+
+// refresh token lamba — itne din tak dobara login nahi karna padta
+const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// do tab ek saath refresh karein to doosre ko purana (abhi abhi revoke hua) token milta hai —
+// itne waqt ke andar ise chori nahi, race maano (warna dono tab logout ho jaate)
+const REFRESH_REUSE_GRACE_MS = 30 * 1000;
 
 // verification link exactly 24 ghante chalega
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -179,17 +188,98 @@ async function login({ email, password }) {
     throw new ForbiddenError("Please check your email to verify your account before logging in.");
   }
 
-  // sub = token kis user ka hai
-  const token = jwt.sign({ sub: user.id }, config.jwtSecret, {
-    expiresIn: TOKEN_EXPIRES_IN
+  const token = signAccessToken(user);
+  const refreshToken = await issueRefreshToken(user._id);
+
+  return { token, refreshToken, user };
+}
+
+// sub = token kis user ka hai
+function signAccessToken(user) {
+  return jwt.sign({ sub: user.id }, config.jwtSecret, {
+    expiresIn: ACCESS_TOKEN_EXPIRES_IN
+  });
+}
+
+// naya refresh token — raw cookie ke liye, DB mein sirf hash (verification token wala hi pattern)
+async function issueRefreshToken(userId) {
+  const refreshToken = crypto.randomBytes(32).toString("hex");
+
+  await RefreshToken.create({
+    user: userId,
+    tokenHash: hashToken(refreshToken),
+    expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS)
   });
 
-  return { token, user };
+  return refreshToken;
+}
+
+// POST /auth/refresh — purana refresh token band, naya access + naya refresh token (rotation)
+async function refreshSession(refreshToken) {
+  // har galat soorat mein ek hi message — kya galat tha ye batane ki zaroorat nahi
+  const invalid = new UnauthorizedError("Session expired. Please log in again.");
+
+  if (!refreshToken) {
+    throw invalid;
+  }
+
+  const tokenHash = hashToken(refreshToken);
+  const now = new Date();
+
+  // dhoondna aur revoke karna ek hi query mein — do requests ek saath aayein to sirf ek kamyab ho
+  const current = await RefreshToken.findOneAndUpdate(
+    { tokenHash, revokedAt: { $exists: false }, expiresAt: { $gt: now } },
+    { $set: { revokedAt: now } }
+  );
+
+  if (!current) {
+    const used = await RefreshToken.findOne({ tokenHash });
+
+    // pehle hi istemal (revoke) ho chuka token dobara aaya — kisi ne chura liya ho sakta hai
+    // grace ke baad aaya to chori maano: is user ke SAARE refresh tokens band (har device se logout)
+    if (used && used.revokedAt && now - used.revokedAt > REFRESH_REUSE_GRACE_MS) {
+      await RefreshToken.updateMany(
+        { user: used.user, revokedAt: { $exists: false } },
+        { $set: { revokedAt: now } }
+      );
+    }
+
+    throw invalid;
+  }
+
+  // token sahi tha lekin user delete ho chuka
+  const user = await User.findById(current.user);
+  if (!user) {
+    throw invalid;
+  }
+
+  return {
+    token: signAccessToken(user),
+    refreshToken: await issueRefreshToken(user._id),
+    user
+  };
+}
+
+// POST /auth/logout — refresh token band; dobara refresh nahi ho sakega
+// token na ho ya pehle hi band ho to bhi theek (logout hamesha kamyab)
+async function logout(refreshToken) {
+  if (!refreshToken) {
+    return;
+  }
+
+  await RefreshToken.updateOne(
+    { tokenHash: hashToken(refreshToken), revokedAt: { $exists: false } },
+    { $set: { revokedAt: new Date() } }
+  );
 }
 
 module.exports = {
   register,
   login,
+  refreshSession,
+  logout,
+  // controller ko cookie ki umar isi se — DB expiry ke barabar
+  REFRESH_TOKEN_TTL_MS,
   verifyEmail,
   resendVerification
 };

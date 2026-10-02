@@ -3,6 +3,12 @@ const mongoose = require("mongoose");
 // centralized error handler — 4 parameters (err pehle) se Express isay error handler maanta hai
 // kisi bhi route mein throw hua error seedha yahan aata hai
 function errorHandler(err, req, res, next) {
+  // kharab JSON body — Node ka parse error body ka hissa message mein daal deta hai
+  // (jaise "[MyPassword1]" is not valid JSON) — isliye message kabhi client ko nahi bhejte, password leak ho jata
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({ message: "Invalid JSON in request body" });
+  }
+
   // galat id (jaise /tasks/abc) ya galat type (completed: "haan") — client ki galti, 400
   if (err instanceof mongoose.Error.CastError) {
     return res.status(400).json({ message: `Invalid ${err.path}` });
