@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Two separate apps:
 - **`backend/`**: Tasks REST API built on Express 5 + Mongoose 9 (MongoDB), CommonJS, with JWT auth (bcryptjs + jsonwebtoken). No build step, linter, or test suite.
-- **`frontend/`**: React + Vite single-page app (ESM) for manually testing register, login and tasks in the browser. It has no router; everything is in `src/App.jsx`.
+- **`frontend/`**: React + Vite single-page app (ESM) for manually testing register, login, resend verification and task CRUD in the browser. Tasks load automatically after login; you can add, toggle and delete them. It has no router; everything is in `src/App.jsx`, and every `/tasks` call goes through `taskApi()`, which logs the user out on a 401.
 
 ## Commands
 

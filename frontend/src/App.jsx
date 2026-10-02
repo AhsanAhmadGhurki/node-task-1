@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from './api'
 
 // JWT ke beech wale hisse (payload) mein exp hota hai — seconds mein
@@ -36,6 +36,8 @@ function App() {
   const [loading, setLoading] = useState(false)
   // kis email ke liye "Resend verification email" button dikhana hai — null = button chhupa
   const [resendFor, setResendFor] = useState(null)
+  // "Add task" form ka text
+  const [newTitle, setNewTitle] = useState('')
 
   // har response ka status + message dikhao — taake masla foran nazar aaye
   function show(res, successText) {
@@ -82,27 +84,82 @@ function App() {
     show(res, res.data?.message)
   }
 
-  async function loadTasks() {
+  // /tasks ki har call isi se — token lagao, aur 401 par (token expire/invalid) logout
+  // null lautata hai jab session khatam ho gaya, taake caller aage kuch na kare
+  async function taskApi(method, path, body) {
     setLoading(true)
-    const res = await api('GET', '/tasks', null, session?.token)
+    const res = await api(method, path, body, session?.token)
     setLoading(false)
 
-    // token expire/invalid — page par "Logged in" dikhate rehna galat hai, logout kar do
     if (res.status === 401) {
       logout()
       setMessage({ ok: false, status: 401, text: 'Session expired — dobara login karein' })
-      return
+      return null
     }
 
-    show(res, `${res.data?.length} task(s) loaded`)
-    setTasks(res.ok ? res.data : null)
+    return res
   }
+
+  async function loadTasks() {
+    const res = await taskApi('GET', '/tasks')
+    if (!res) return
+
+    if (res.ok) {
+      setTasks(res.data)
+    } else {
+      show(res)
+    }
+  }
+
+  async function addTask(e) {
+    e.preventDefault()
+    const res = await taskApi('POST', '/tasks', { title: newTitle })
+    if (!res) return
+
+    show(res, `Task added: ${res.data?.title}`)
+    if (res.ok) {
+      setTasks((current) => [...(current || []), res.data])
+      setNewTitle('')
+    }
+  }
+
+  async function toggleTask(task) {
+    // sirf completed bhejo — backend PUT par sirf bheji hui fields badalta hai
+    const res = await taskApi('PUT', `/tasks/${task._id}`, { completed: !task.completed })
+    if (!res) return
+
+    if (res.ok) {
+      setTasks((current) => current.map((t) => (t._id === task._id ? res.data : t)))
+    } else {
+      show(res)
+    }
+  }
+
+  async function deleteTask(task) {
+    const res = await taskApi('DELETE', `/tasks/${task._id}`)
+    if (!res) return
+
+    show(res, `Task deleted: ${task.title}`)
+    if (res.ok) {
+      setTasks((current) => current.filter((t) => t._id !== task._id))
+    }
+  }
+
+  // login hote hi (ya refresh par session mile to) tasks khud load karo — button dabane ki zaroorat nahi
+  useEffect(() => {
+    if (session?.token) {
+      loadTasks()
+    }
+    // sirf token badalne par — loadTasks har render par naya banta hai
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.token])
 
   function logout() {
     localStorage.removeItem('session')
     setSession(null)
     setTasks(null)
     setMessage(null)
+    setNewTitle('')
   }
 
   return (
@@ -122,19 +179,46 @@ function App() {
             <p className="user-email">{session.user?.email}</p>
 
             <div className="row">
-              <button onClick={loadTasks} disabled={loading}>Load my tasks</button>
+              <button className="secondary" onClick={loadTasks} disabled={loading}>Refresh</button>
               <button className="secondary" onClick={logout}>Logout</button>
             </div>
 
+            <form className="add-task" onSubmit={addTask}>
+              <input
+                name="title"
+                placeholder="Naya task likhein…"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                aria-label="New task title"
+              />
+              <button type="submit" disabled={loading || newTitle.trim() === ''}>Add</button>
+            </form>
+
             {tasks && (
               tasks.length === 0 ? (
-                <p className="muted">Koi task nahi hai.</p>
+                <p className="muted empty">Koi task nahi hai — upar se naya add karein.</p>
               ) : (
                 <ul className="tasks">
                   {tasks.map((task) => (
                     <li key={task._id}>
-                      <span className={task.completed ? 'done' : ''}>{task.title}</span>
-                      <span className="badge">{task.completed ? 'done' : 'pending'}</span>
+                      <label className="task-label">
+                        <input
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={() => toggleTask(task)}
+                          disabled={loading}
+                        />
+                        <span className={task.completed ? 'done' : ''}>{task.title}</span>
+                      </label>
+                      <button
+                        className="delete"
+                        onClick={() => deleteTask(task)}
+                        disabled={loading}
+                        aria-label={`Delete ${task.title}`}
+                        title="Delete"
+                      >
+                        ×
+                      </button>
                     </li>
                   ))}
                 </ul>

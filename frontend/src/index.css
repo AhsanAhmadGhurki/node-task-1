@@ -213,3 +213,54 @@ button.secondary:hover:not(:disabled) {
   padding-top: 16px;
   border-top: 1px solid var(--border);
 }
+
+.add-task {
+  flex-direction: row;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.add-task input {
+  flex: 1;
+  min-width: 0;
+}
+
+.empty {
+  margin-top: 18px;
+}
+
+.task-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.task-label input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.task-label span {
+  overflow-wrap: anywhere;
+}
+
+button.delete {
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 10px;
+}
+
+button.delete:hover:not(:disabled) {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
