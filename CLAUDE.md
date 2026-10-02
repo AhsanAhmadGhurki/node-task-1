@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Two separate apps:
 - **`backend/`**: Tasks REST API built on Express 5 + Mongoose 9 (MongoDB), CommonJS, with JWT auth (bcryptjs + jsonwebtoken). No build step, linter, or test suite.
-- **`frontend/`**: React + Vite single-page app (ESM) for manually testing register, login, resend verification and task CRUD in the browser. Tasks load automatically after login; you can add, toggle and delete them. It has no router; everything is in `src/App.jsx`, and every `/tasks` call goes through `taskApi()`, which logs the user out on a 401.
+- **`frontend/`**: React + Vite SPA (ESM) with react-router v7 and axios, for using register, login, resend verification and task CRUD in the browser.
 
 ## Commands
 
@@ -27,9 +27,18 @@ Every API request needs an `x-api-key` header. `/tasks` routes also need `Author
 curl -H "x-api-key: $API_KEY" -H "Authorization: Bearer $TOKEN" http://localhost:3000/tasks
 ```
 
+## Frontend structure
+
+Under `frontend/src/`, the layers mirror the backend:
+- **`api/`**: `axios.js` is the single axios instance (`baseURL: '/api'`). A request interceptor reads the token **directly from `localStorage`** through `utils/helpers.loadSession()`, not from context: React runs child effects before parent effects, so Dashboard's first request would otherwise go out without a token. A response interceptor calls the handler registered with `setUnauthorizedHandler` on a 401, but **only when the request carried a token** (a 401 on login means a wrong password, not an expired session). `authApi.js` and `taskApi.js` are thin wrappers that return `data`.
+- **`context/AuthContext.jsx`**: `AuthProvider` (session state, `login`, `logout(reason)`, `notice`). It registers the 401 handler as `logout("Session expired")`. The context object and the `useAuth()` hook live in `hooks/useAuth.js`; keeping them out of the provider file keeps Vite fast refresh working (oxlint `only-export-components`).
+- **`pages/`**: `Login`, `Register`, `Dashboard` and `NotFound`. Routes are in `App.jsx`: `/` redirects to `/dashboard`, which is wrapped in `components/ProtectedRoute`, which redirects to `/login` when there's no token. Login and Register redirect to `/dashboard` when already logged in.
+- **`components/`**: `Navbar`, `TaskItem`, `TaskForm`, `Loader`, `Alert` (`{ ok, status, text }`, built by `helpers.toAlert(error)`), and `ResendVerification` (shown after register, on a 409, or on a 403 login).
+- **Dashboard:** every mutation goes through `run()`, which sets `busy` (disables buttons, so one click sends one request) and turns errors into an `Alert`. The first load in `useEffect` sets state only in `.then` and has a `cancelled` cleanup (oxlint `set-state-in-effect`). In dev, StrictMode sends the first `GET /tasks` twice; that's expected.
+
 ## Frontend ↔ backend
 
-The browser never calls `localhost:3000` directly. `frontend/src/api.js` fetches `/api/...`, and the Vite proxy in `frontend/vite.config.js` strips `/api`, forwards the request to the backend, and **adds the `x-api-key` header server-side** (read with `loadEnv` and no `VITE_` prefix). Because of this, the backend has no CORS middleware and the API key never reaches the browser bundle. Don't expose it with a `VITE_` variable.
+The browser never calls `localhost:3000` directly. `frontend/src/api/axios.js` calls `/api/...`, and the Vite proxy in `frontend/vite.config.js` strips `/api`, forwards the request to the backend, and **adds the `x-api-key` header server-side** (read with `loadEnv` and no `VITE_` prefix). Because of this, the backend has no CORS middleware and the API key never reaches the browser bundle. Don't expose it with a `VITE_` variable.
 
 ## Backend architecture
 
