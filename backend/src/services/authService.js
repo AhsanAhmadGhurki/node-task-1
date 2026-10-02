@@ -197,6 +197,8 @@ async function login({ email, password }) {
 // sub = token kis user ka hai
 function signAccessToken(user) {
   return jwt.sign({ sub: user.id }, config.jwtSecret, {
+    // verify sirf HS256 maanta hai — sign mein bhi saaf likho, library ke default par bharosa nahi
+    algorithm: "HS256",
     expiresIn: ACCESS_TOKEN_EXPIRES_IN
   });
 }

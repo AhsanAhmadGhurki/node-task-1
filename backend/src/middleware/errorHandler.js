@@ -15,18 +15,31 @@ function errorHandler(err, req, res, next) {
   }
 
   // schema ka rule toota (jaise title khali) — 400
+  // err.message nahi bhejte — Mongoose usmein value daal deta hai ("Cast to string failed for value "<password>"")
+  // har field ka sirf naam: required ka apna message (value nahi hoti), baaki sab "Invalid <field>"
   if (err instanceof mongoose.Error.ValidationError) {
-    return res.status(400).json({ message: err.message });
+    const message = Object.values(err.errors)
+      .map((fieldError) => (fieldError.kind === "required" ? fieldError.message : `Invalid ${fieldError.path}`))
+      .join(", ");
+    return res.status(400).json({ message });
   }
 
   // unique index toota (do requests ne ek saath same email register kiya) — 409
+  // MongoDB ka message ("dup key: { email: ... }") nahi bhejte — apna fixed message
   if (err.code === 11000) {
     return res.status(409).json({ message: "Email already registered" });
   }
 
-  res.status(err.statusCode || 500).json({
-    message: err.message || "Internal Server Error"
-  });
+  // apni error classes (NotFoundError waghaira) aur body-parser ke 4xx — inke messages hum ne khud likhe hain
+  if (err.statusCode && err.statusCode < 500) {
+    return res.status(err.statusCode).json({ message: err.message });
+  }
+
+  // anjaan error (500) — message mein kuch bhi ho sakta hai (password, DB ki andar ki baat), client ko kabhi nahi
+  // log mein bhi message nahi — sirf qism aur code ki jagah (stack frames), debugging ke liye kaafi
+  const frames = (err.stack || "").split("\n").slice(1, 6).join("\n");
+  console.error(`Unhandled ${err.name || "Error"} on ${req.method} ${req.path}\n${frames}`);
+  res.status(500).json({ message: "Internal Server Error" });
 }
 
 module.exports = errorHandler;
