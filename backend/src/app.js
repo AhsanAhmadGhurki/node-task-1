@@ -26,8 +26,8 @@ app.use(apiKeyMiddleware);
 // /tasks se shuru hone wali har request — pehle token check, phir taskRoutes ke paas
 app.use("/tasks", authMiddleware, taskRoutes);
 
-// /auth/register aur /auth/login
-app.use("/auth", authRoutes);
+// POST /register aur POST /auth/login
+app.use(authRoutes);
 
 // POST /resend-verification
 app.use(verificationRoutes.router);

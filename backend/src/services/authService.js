@@ -82,7 +82,8 @@ async function verifyEmail(token) {
   }
 
   if (user.verificationTokenExpires < new Date()) {
-    throw new GoneError("Verification link has expired. Please request a new one.");
+    // message task ke mutabiq hubahu
+    throw new GoneError("link expired, request a new one.");
   }
 
   // verify karo aur token hata do — dobara isi link se kuch nahi hoga
@@ -140,7 +141,8 @@ async function login({ email, password }) {
 
   // password check ke BAAD — warna galat password wala bhi jaan leta ke email registered hai
   if (!user.isVerified) {
-    throw new ForbiddenError("Please verify your email before logging in");
+    // task ke mutabiq — user ko batao ke email check kare
+    throw new ForbiddenError("Please check your email to verify your account before logging in.");
   }
 
   // sub = token kis user ka hai

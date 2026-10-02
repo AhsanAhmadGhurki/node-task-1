@@ -7,7 +7,7 @@ Express + MongoDB REST API with JWT auth (`backend/`) and a small React + Vite U
 **Backend**: copy `backend/.env.example` to `backend/.env` and fill in:
 
 ```
-PORT=4000
+PORT=3000
 API_KEY=...
 MONGO_URI=...
 JWT_SECRET=...
@@ -25,7 +25,7 @@ cd frontend && npm install
 Use two terminals:
 
 ```
-cd backend && npm run dev     # API on http://localhost:4000
+cd backend && npm run dev     # API on http://localhost:3000
 cd frontend && npm run dev    # UI  on http://localhost:5173
 ```
 
@@ -37,7 +37,7 @@ All requests need an `x-api-key` header, except `GET /verify/:token`, which is o
 
 | Method | Path | Auth |
 |---|---|---|
-| POST | `/auth/register` | API key. The password needs 8+ characters and a number. Logs a verification link to the console |
+| POST | `/register` | API key. The password needs 8+ characters and a number. Logs a verification link to the console |
 | GET | `/verify/:token` | public. The link expires after 24h and works only once |
 | POST | `/resend-verification` | API key, body `{ email }`. Logs a new link, and the old one stops working |
 | POST | `/auth/login` | API key, returns `{ token, user }` |

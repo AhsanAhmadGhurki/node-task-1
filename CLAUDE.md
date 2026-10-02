@@ -24,19 +24,19 @@ Frontend (run from `frontend/`):
 
 Every API request needs an `x-api-key` header. `/tasks` routes also need `Authorization: Bearer <token>` from `POST /auth/login`:
 ```
-curl -H "x-api-key: $API_KEY" -H "Authorization: Bearer $TOKEN" http://localhost:4000/tasks
+curl -H "x-api-key: $API_KEY" -H "Authorization: Bearer $TOKEN" http://localhost:3000/tasks
 ```
 
 ## Frontend ↔ backend
 
-The browser never calls `localhost:4000` directly. `frontend/src/api.js` fetches `/api/...`, and the Vite proxy in `frontend/vite.config.js` strips `/api`, forwards the request to the backend, and **adds the `x-api-key` header server-side** (read with `loadEnv` and no `VITE_` prefix). Because of this, the backend has no CORS middleware and the API key never reaches the browser bundle. Don't expose it with a `VITE_` variable.
+The browser never calls `localhost:3000` directly. `frontend/src/api.js` fetches `/api/...`, and the Vite proxy in `frontend/vite.config.js` strips `/api`, forwards the request to the backend, and **adds the `x-api-key` header server-side** (read with `loadEnv` and no `VITE_` prefix). Because of this, the backend has no CORS middleware and the API key never reaches the browser bundle. Don't expose it with a `VITE_` variable.
 
 ## Backend architecture
 
 Layered flow: `routes → (validation middleware) → controllers → services → models`. All paths below are under `backend/src/`.
 
 - **`index.js`** connects to MongoDB first, then starts the server. It exits the process if either step fails. **`app.js`** only builds the Express app, so it can be imported without starting a server.
-- **Middleware order in `app.js` matters:** `express.json` → logger → `GET /verify/:token` (public, mounted before the API key check because the link is opened in a browser without headers) → API key check (global, after the logger so rejected requests still get logged) → `/tasks` (with `authMiddleware`) → `/auth` (no JWT check, since login is where the token is issued) → `POST /resend-verification` → 404 handler → central error handler (always last).
+- **Middleware order in `app.js` matters:** `express.json` → logger → `GET /verify/:token` (public, mounted before the API key check because the link is opened in a browser without headers) → API key check (global, after the logger so rejected requests still get logged) → `/tasks` (with `authMiddleware`) → `authRoutes`, mounted at the root with full paths: `POST /register` and `POST /auth/login` (no JWT check, since login is where the token is issued) → `POST /resend-verification` → 404 handler → central error handler (always last).
 - **Auth:** `services/authService.js` hashes passwords with bcrypt on register, and on login compares the password and signs a JWT with `{ sub: user.id }` (1-hour expiry). `middleware/auth.js` verifies `Bearer` tokens (HS256 only) and sets `req.user = { id }`. The `User` model's `toJSON` removes `password`, so it's safe to return user documents. Login gives the same 401 message for an unknown email and a wrong password.
 - **Email verification:** register uses `validateRegister` (8+ characters, at least one digit; login keeps the looser `validateAuth`) and bcrypt cost 12. It stores `isVerified: false`, plus `verificationTokenHash` (the SHA-256 of a `crypto.randomBytes(32)` hex token) and `verificationTokenExpires` (24h). The raw token exists only in the link, which `services/emailService.js` logs to the console (`http://localhost:${PORT}/verify/<token>`). On verify, a malformed token gives 400; an unknown, used or replaced token gives 410; an expired one gives 410. Success sets `isVerified` and `$unset`s both token fields through an atomic `updateOne`. Resend overwrites the hash, so the old link stops working. Login returns 403 for unverified users. The check runs after the password check, so a wrong password still gives the generic 401 and does not reveal verification status.
 - **Config:** `process.env` is read only in `config/index.js`. Everything else imports that config module.

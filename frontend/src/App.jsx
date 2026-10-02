@@ -1,10 +1,26 @@
 import { useState } from 'react'
 import { api } from './api'
 
-// token aur user refresh ke baad bhi rahein
+// JWT ke beech wale hisse (payload) mein exp hota hai — seconds mein
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return payload.exp * 1000 < Date.now()
+  } catch {
+    // token parh hi na sakein to bhi expired maano
+    return true
+  }
+}
+
+// token aur user refresh ke baad bhi rahein — lekin expire ho chuka token wapas na lao
 function loadSession() {
   try {
-    return JSON.parse(localStorage.getItem('session')) || null
+    const session = JSON.parse(localStorage.getItem('session'))
+    if (!session || isTokenExpired(session.token)) {
+      localStorage.removeItem('session')
+      return null
+    }
+    return session
   } catch {
     return null
   }
@@ -29,10 +45,13 @@ function App() {
     e.preventDefault()
     setLoading(true)
 
-    const res = await api('POST', `/auth/${tab}`, { email, password })
+    // register root par hai (/register), login /auth/login par
+    const path = tab === 'register' ? '/register' : '/auth/login'
+    const res = await api('POST', path, { email, password })
 
     if (tab === 'register') {
-      show(res, `User registered: ${res.data?.email}. Ab login karein.`)
+      // login se pehle verify zaroori — link backend ke terminal mein aata hai
+      show(res, `User registered: ${res.data?.email}. Backend terminal mein verification link kholein, phir login karein.`)
       if (res.ok) {
         setTab('login')
         setPassword('')
@@ -53,9 +72,17 @@ function App() {
   async function loadTasks() {
     setLoading(true)
     const res = await api('GET', '/tasks', null, session?.token)
+    setLoading(false)
+
+    // token expire/invalid — page par "Logged in" dikhate rehna galat hai, logout kar do
+    if (res.status === 401) {
+      logout()
+      setMessage({ ok: false, status: 401, text: 'Session expired — dobara login karein' })
+      return
+    }
+
     show(res, `${res.data?.length} task(s) loaded`)
     setTasks(res.ok ? res.data : null)
-    setLoading(false)
   }
 
   function logout() {
