@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { resendVerification } from '../api/authApi'
 import { toAlert } from '../utils/helpers'
 
-// onResult — parent apne Alert mein backend ka jawab dikhata hai ("sent", "already verified", "wait 42 seconds")
+// onResult — parent apne Alert mein backend ka jawab dikhata hai (har halat mein ek hi generic message, ya 429 rate limit)
 export default function ResendVerification({ email, onResult }) {
   const [sending, setSending] = useState(false)
 

@@ -11,7 +11,6 @@ const UnauthorizedError = require("../utils/UnauthorizedError");
 const GoneError = require("../utils/GoneError");
 const BadRequestError = require("../utils/BadRequestError");
 const ForbiddenError = require("../utils/ForbiddenError");
-const TooManyRequestsError = require("../utils/TooManyRequestsError");
 
 // bcrypt ka cost — jitna zyada, utna slow (aur brute force utna mushkil)
 // purane cost-10 hashes bhi login par chalte hain — cost hash ke andar likha hota hai
@@ -118,16 +117,16 @@ async function verifyEmail(token) {
   }
 }
 
+// har halat mein yahi ek jawab — "nahi hai", "verified hai", "bhej di" aur "cooldown" alag alag hon
+// to koi bhi email daal kar pata kar le ke account hai ya nahi (account enumeration)
+const RESEND_RESPONSE = { message: "If that account exists and is not verified, a new verification link has been sent" };
+
 async function resendVerification(email) {
   const user = await User.findOne({ email: email.trim().toLowerCase() });
 
-  // user na ho to bhi wahi jawab — taake koi andaza na laga sake ke email registered hai ya nahi
-  if (!user) {
-    return { message: "If that account exists and is not verified, a new verification link has been sent" };
-  }
-
-  if (user.isVerified) {
-    return { message: "Email is already verified" };
+  // user na ho ya pehle se verified ho — kuch nahi bhejna, lekin jawab wahi
+  if (!user || user.isVerified) {
+    return RESEND_RESPONSE;
   }
 
   // naya token — purana hash overwrite ho jaata hai, isliye purana link foran band
@@ -154,17 +153,15 @@ async function resendVerification(email) {
     }
   );
 
+  // cooldown chal raha hai — email nahi jaati, lekin 429 bhi nahi (warna 429 batata ke unverified account hai)
   if (result.modifiedCount === 0) {
-    // kitne second baaki — user ko bata do kab dobara try kare
-    const sentAt = user.verificationEmailSentAt ? user.verificationEmailSentAt.getTime() : now.getTime();
-    const waitSeconds = Math.max(1, Math.ceil((sentAt + RESEND_COOLDOWN_MS - now.getTime()) / 1000));
-    throw new TooManyRequestsError(`Please wait ${waitSeconds} seconds before requesting another verification email.`);
+    return RESEND_RESPONSE;
   }
 
   // background mein — register ki tarah response email ka intezar nahi karta
   emailService.sendVerificationEmail(user.email, token);
 
-  return { message: "Verification link sent" };
+  return RESEND_RESPONSE;
 }
 
 async function login({ email, password }) {

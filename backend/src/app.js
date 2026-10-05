@@ -1,6 +1,7 @@
 // Express app yahan banti hai — server start index.js karta hai
 const express = require("express");
 const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
 const loggingMiddleware = require("./middleware/logger");
 const apiKeyMiddleware = require("./middleware/apiKey");
 const authMiddleware = require("./middleware/auth");
@@ -11,6 +12,10 @@ const authRoutes = require("./routes/authRoutes");
 const verificationRoutes = require("./routes/verificationRoutes");
 
 const app = express();
+
+// security headers sabse pehle — taake malformed JSON wala 400 bhi in headers ke saath jaaye
+// (express.json fail ho to request seedha errorHandler par jaati hai, baad wale middleware skip)
+app.use(helmet());
 
 // JSON body padhne ke liye
 app.use(express.json());
