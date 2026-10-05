@@ -5,11 +5,31 @@ const { respondPage } = require("../views/verifyPage");
 // poori RFC wali validation nahi — asal saboot verification email hi hai
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// field na ho (undefined/null/khaali) to "required", ho lekin string na ho (object, array, number) to "must be a string"
+// dono 400 hain — bas user ko saaf pata chale ke galti kya hai
+// trim: email mein sirf spaces = khaali, password mein spaces bhi password ka hissa hain
+function stringFieldError(value, field, { trim }) {
+  if (value === undefined || value === null) {
+    return `${field} is required`;
+  }
+
+  if (typeof value !== "string") {
+    return `${field} must be a string`;
+  }
+
+  if ((trim ? value.trim() : value) === "") {
+    return `${field} is required`;
+  }
+
+  return null;
+}
+
 // email ka missing / galat format — dono jagah (register, resend) ek hi rule
 // error message lautata hai, sab theek ho to null
 function emailError(email) {
-  if (typeof email !== "string" || email.trim() === "") {
-    return "Email is required";
+  const fieldError = stringFieldError(email, "Email", { trim: true });
+  if (fieldError) {
+    return fieldError;
   }
 
   if (!EMAIL_PATTERN.test(email.trim())) {
@@ -19,17 +39,58 @@ function emailError(email) {
   return null;
 }
 
-// POST /tasks — title zaroori hai
+// completed sirf asli boolean — "true", 1, null jaisi values Mongoose chupke se true/null bana deta tha
+// bheja hi na ho (undefined) to theek — create par default false, update par woh field badalti hi nahi
+function completedError(completed) {
+  if (completed !== undefined && typeof completed !== "boolean") {
+    return "Completed must be true or false";
+  }
+
+  return null;
+}
+
+// POST /tasks — title zaroori hai, completed optional
 function validateCreateTask(req, res, next) {
   // body na bheji ho to Express 5 mein req.body undefined hota hai — isliye || {}
-  const { title } = req.body || {};
+  const { title, completed } = req.body || {};
 
   // title na ho, string na ho, ya sirf spaces ho to 400 — next() nahi chalega, controller tak nahi jayega
-  if (typeof title !== "string" || title.trim() === "") {
-    return res.status(400).json({ message: "Title is required" });
+  const titleError = stringFieldError(title, "Title", { trim: true });
+  if (titleError) {
+    return res.status(400).json({ message: titleError });
+  }
+
+  const invalidCompleted = completedError(completed);
+  if (invalidCompleted) {
+    return res.status(400).json({ message: invalidCompleted });
   }
 
   // validation pass — ab controller chalao
+  next();
+}
+
+// PUT /tasks/:id — partial update, lekin kam se kam ek field to ho
+// jo field bheji hai woh create jaise hi rules par chale — 123 ka "123" ya null save na ho
+function validateUpdateTask(req, res, next) {
+  const { title, completed } = req.body || {};
+
+  if (title === undefined && completed === undefined) {
+    return res.status(400).json({ message: "Provide title or completed to update" });
+  }
+
+  if (title !== undefined) {
+    // null bhi yahan aata hai — stringFieldError use "Title is required" deta hai
+    const titleError = stringFieldError(title, "Title", { trim: true });
+    if (titleError) {
+      return res.status(400).json({ message: titleError });
+    }
+  }
+
+  const invalidCompleted = completedError(completed);
+  if (invalidCompleted) {
+    return res.status(400).json({ message: invalidCompleted });
+  }
+
   next();
 }
 
@@ -37,13 +98,15 @@ function validateCreateTask(req, res, next) {
 function validateAuth(req, res, next) {
   const { email, password } = req.body || {};
 
-  if (typeof email !== "string" || email.trim() === "") {
-    return res.status(400).json({ message: "Email is required" });
+  const emailFieldError = stringFieldError(email, "Email", { trim: true });
+  if (emailFieldError) {
+    return res.status(400).json({ message: emailFieldError });
   }
 
   // password trim nahi karte — spaces bhi password ka hissa ho sakte hain
-  if (typeof password !== "string" || password === "") {
-    return res.status(400).json({ message: "Password is required" });
+  const passwordFieldError = stringFieldError(password, "Password", { trim: false });
+  if (passwordFieldError) {
+    return res.status(400).json({ message: passwordFieldError });
   }
 
   next();
@@ -60,8 +123,9 @@ function validateRegister(req, res, next) {
     return res.status(400).json({ message: invalidEmail });
   }
 
-  if (typeof password !== "string" || password === "") {
-    return res.status(400).json({ message: "Password is required" });
+  const passwordFieldError = stringFieldError(password, "Password", { trim: false });
+  if (passwordFieldError) {
+    return res.status(400).json({ message: passwordFieldError });
   }
 
   if (password.length < 8) {
@@ -91,6 +155,7 @@ function validateEmail(req, res, next) {
 
 module.exports = {
   validateCreateTask,
+  validateUpdateTask,
   validateAuth,
   validateRegister,
   validateEmail
