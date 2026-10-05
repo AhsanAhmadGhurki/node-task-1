@@ -1,8 +1,7 @@
 // rate limiting — ek IP se had se zyada requests rok do (email spam aur brute force se bachao)
 const { rateLimit } = require("express-rate-limit");
-const { respondPage } = require("../views/verifyPage");
 
-// limit poori ho to 429 — browser form ko page, API client ko JSON (baaki errors jaisa { message })
+// limit poori ho to 429 — baaki errors jaisa { message }
 function createLimiter({ windowMs, limit, message, skipSuccessfulRequests = false }) {
   return rateLimit({
     windowMs,
@@ -12,17 +11,30 @@ function createLimiter({ windowMs, limit, message, skipSuccessfulRequests = fals
     standardHeaders: "draft-8",
     legacyHeaders: false,
     handler: (req, res) => {
-      respondPage(res, 429, { ok: false, title: "Too many requests", message });
+      res.status(429).json({ message });
     }
   });
 }
 
 // resend sabse khatarnaak — har request asal email bhejti hai
-// /resend-verification aur /verify/resend dono ek hi counter share karte hain
 const resendLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   limit: 5,
-  message: "Too many verification email requests. Please try again in 15 minutes."
+  message: "Too many verification code requests. Please try again in 15 minutes."
+});
+
+// resend — ek EMAIL par 60 second mein ek request (IP badal kar bhi nahi bachta)
+// har email par lagta hai, account ho ya na ho — sirf maujood accounts par lagta to 429 batata ke account hai
+// validateEmail ke BAAD lagta hai (email sahi shakal ka ho); normalize authService jaisa (trim + lowercase)
+const resendEmailCooldown = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 1,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => `resend:${req.body.email.trim().toLowerCase()}`,
+  handler: (req, res) => {
+    res.status(429).json({ message: "Please wait a minute before requesting another code." });
+  }
 });
 
 // register bhi email bhejta hai — naye naye emails se spam na ho
@@ -41,8 +53,19 @@ const loginLimiter = createLimiter({
   skipSuccessfulRequests: true
 });
 
+// email verify ka code (/verify-email) — har code par 5 koshishen DB mein;
+// ye IP limit alag: ek IP bahut saare accounts par 5-5 guess na kar sake. sirf galat koshishen ginti mein
+const otpVerifyLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: "Too many failed code attempts. Please try again in 15 minutes.",
+  skipSuccessfulRequests: true
+});
+
 module.exports = {
   resendLimiter,
+  resendEmailCooldown,
   registerLimiter,
-  loginLimiter
+  loginLimiter,
+  otpVerifyLimiter
 };

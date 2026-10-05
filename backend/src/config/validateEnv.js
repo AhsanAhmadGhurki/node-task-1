@@ -48,6 +48,12 @@ function validateEnv(env = process.env) {
     errors.push("SMTP_USER and SMTP_PASS must be set together (or both left empty)");
   }
 
+  // production mein SMTP zaroori — SMTP na ho to verification code console (logs) mein chhapta hai,
+  // aur logs parhne wala kisi ka bhi email verify kar sakta; development mein yahi console wala rasta theek hai
+  if (env.NODE_ENV === "production" && (!env.SMTP_USER || !env.SMTP_PASS)) {
+    errors.push("SMTP_USER and SMTP_PASS are required when NODE_ENV=production (otherwise codes are printed to the logs)");
+  }
+
   // dono optional — na hon to default (3000 / 465), lekin di gayi value galat ho to chupke se default nahi
   for (const name of ["PORT", "SMTP_PORT"]) {
     if (env[name]) {

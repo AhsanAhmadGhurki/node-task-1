@@ -1,16 +1,17 @@
-// auth ka saara kaam yahan — hashing, password check, token banana, email verification
+// auth ka saara kaam yahan — hashing, password check, token banana, email verify ka code
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const RefreshToken = require("../models/RefreshToken");
+const Otp = require("../models/Otp");
 const config = require("../config");
 const emailService = require("./emailService");
 const ConflictError = require("../utils/ConflictError");
 const UnauthorizedError = require("../utils/UnauthorizedError");
-const GoneError = require("../utils/GoneError");
 const BadRequestError = require("../utils/BadRequestError");
 const ForbiddenError = require("../utils/ForbiddenError");
+const TooManyRequestsError = require("../utils/TooManyRequestsError");
 
 // bcrypt ka cost — jitna zyada, utna slow (aur brute force utna mushkil)
 // purane cost-10 hashes bhi login par chalte hain — cost hash ke andar likha hota hai
@@ -27,149 +28,262 @@ const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // itne waqt ke andar ise chori nahi, race maano (warna dono tab logout ho jaate)
 const REFRESH_REUSE_GRACE_MS = 30 * 1000;
 
-// verification link exactly 24 ghante chalega
-const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+// email verify ka code — 6 digit (sirf register ke baad; login par code nahi)
+// 5 minute chalta hai, 5 galat koshishon par band, aur ek user ghante mein 3 hi maang sakta hai
+const OTP_TTL_MS = 5 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_MAX_REQUESTS = 3;
+const OTP_WINDOW_MS = 60 * 60 * 1000;
+// bcrypt — code sirf 10 lakh mein se ek hai, SHA-256 hota to DB leak par second mein toot jaata
+// cost 10 (password wale 12 se kam) — code 5 minute ka hai, har request par 250ms kyun lagayein
+const OTP_SALT_ROUNDS = 10;
 
-// ek email par 60 second mein sirf ek verification email — IP badal kar bhi spam na ho sake
-const RESEND_COOLDOWN_MS = 60 * 1000;
+// timing se enumeration na ho — user na mile tab bhi utna hi bcrypt kaam karo jitna mile to hota
+// (warna "na-maujood email" 2ms aur "galat password" 220ms mein jawab deta, message ek hone ke bawajood)
+// startup par ek dafa banao — har request par nahi
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("timing-dummy-password", SALT_ROUNDS);
+const DUMMY_OTP_HASH = bcrypt.hashSync("000000", OTP_SALT_ROUNDS);
 
-// SHA-256 hex — DB mein token ki jagah ye save hota hai
+// SHA-256 hex — refresh token DB mein isi shakal mein
 // bcrypt nahi kyunki token pehle hi 256-bit random hai, aur hash se seedha dhoondna padta hai
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-// naya verification token — raw link ke liye, hash aur expiry DB ke liye
-function createVerificationToken() {
-  // 32 random bytes → 64 characters ka hex string
-  const token = crypto.randomBytes(32).toString("hex");
-
-  return {
-    token,
-    tokenHash: hashToken(token),
-    expires: new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS)
-  };
+// email ki ek hi shakal — register, verify, resend, login sab isi se dhoondte hain
+// ("QA@X.com " aur "qa@x.com" ek hi user; schema bhi lowercase+trim karta hai, lekin dhoondne se pehle khud karna padta hai)
+function normalizeEmail(email) {
+  return email.trim().toLowerCase();
 }
 
+// naya code banao, hash save karo, ginti badhao — code lautata hai (email ke liye), had poori ho to 429
+// purpose: abhi sirf "verify-email" — model mein field hai taake aage koi aur code (jaise password reset) alag rahe
+async function issueOtp(userId, purpose) {
+  // crypto.randomInt — Math.random andaza lagane layak hai; padStart taake "000123" bhi 6 digit rahe
+  const otp = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+  const otpHash = await bcrypt.hash(otp, OTP_SALT_ROUNDS);
+  const now = new Date();
+  const windowOpenedAfter = new Date(now.getTime() - OTP_WINDOW_MS);
+  // naya code purane ko overwrite karta hai — attempts bhi 0 se
+  const freshCode = {
+    otpHash,
+    expiresAt: new Date(now.getTime() + OTP_TTL_MS),
+    attempts: 0,
+    purgeAt: new Date(now.getTime() + OTP_WINDOW_MS)
+  };
+
+  // ginti aur naya code ek hi query mein — do requests ek saath aayein to bhi 3 se zyada na niklein
+  // 1) window chal rahi hai aur 3 se kam maange
+  const inWindow = () =>
+    Otp.updateOne(
+      { user: userId, purpose, windowStart: { $gt: windowOpenedAfter }, requestCount: { $lt: OTP_MAX_REQUESTS } },
+      { $set: freshCode, $inc: { requestCount: 1 } }
+    );
+
+  let result = await inWindow();
+
+  // 2) ghanta guzar gaya — nayi window, ginti 1 se
+  if (result.matchedCount === 0) {
+    result = await Otp.updateOne(
+      { user: userId, purpose, windowStart: { $lte: windowOpenedAfter } },
+      { $set: { ...freshCode, windowStart: now, requestCount: 1 } }
+    );
+  }
+
+  // 3) pehli dafa — document hi nahi; unique (user, purpose) ki wajah se do creates mein se ek hi bachta hai
+  if (result.matchedCount === 0) {
+    try {
+      await Otp.create({ user: userId, purpose, ...freshCode, windowStart: now, requestCount: 1 });
+    } catch (err) {
+      if (err.code !== 11000) {
+        throw err;
+      }
+      // document maujood hai — ya to doosri request ne abhi banaya (dobara koshish), ya had poori
+      result = await inWindow();
+      if (result.matchedCount === 0) {
+        throw new TooManyRequestsError("Too many codes requested. Please try again later.");
+      }
+    }
+  }
+
+  return otp;
+}
+
+// code check karo — sahi ho to code khatam (ek hi dafa chalta hai), galat ho to `invalid` throw
+// har galat soorat (code nahi, expire, koshishen khatam, galat code) mein wahi `invalid` — kya galat tha nahi batate
+async function consumeOtp(userId, purpose, otp, invalid) {
+  // koshish pehle "book" karo, phir compare — warna 20 parallel requests sab "attempts < 5" dekh letin
+  // code ho, expire na hua ho, 5 se kam koshishen — teeno check aur attempts+1 ek hi query mein
+  const record = await Otp.findOneAndUpdate(
+    {
+      user: userId,
+      purpose,
+      otpHash: { $exists: true },
+      expiresAt: { $gt: new Date() },
+      attempts: { $lt: OTP_MAX_ATTEMPTS }
+    },
+    { $inc: { attempts: 1 } },
+    { returnDocument: "after" }
+  );
+
+  if (!record) {
+    throw invalid;
+  }
+
+  const isMatch = await bcrypt.compare(otp, record.otpHash);
+
+  if (!isMatch) {
+    // 5vi galat koshish — code band (sirf yahi code; agar beech mein naya aa gaya to use nahi chhedte)
+    if (record.attempts >= OTP_MAX_ATTEMPTS) {
+      await Otp.updateOne({ _id: record._id, otpHash: record.otpHash }, { $unset: { otpHash: 1, expiresAt: 1 } });
+    }
+    throw invalid;
+  }
+
+  // consume bhi atomic — do sahi requests ek saath aayein to sirf ek kamyab
+  const consumed = await Otp.updateOne(
+    { _id: record._id, otpHash: record.otpHash },
+    { $unset: { otpHash: 1, expiresAt: 1 }, $set: { attempts: 0 } }
+  );
+  if (consumed.modifiedCount === 0) {
+    throw invalid;
+  }
+}
+
+// unverified account dobara register ho — "User registered" (201) nahi, kyunki naya account bana hi nahi
+// ek hi jawab, chahe code gaya ho ya ghante ki had (3) poori ho — had ka 429 batata ke yahan unverified account hai
+const REGISTER_PENDING_RESPONSE = { message: "If an account exists for this email, a verification code has been sent." };
+
+// POST /register — naya user unverified banta hai, email par verify ka code jaata hai
+// lautata hai: { created: true, user } (naya, 201) ya { created: false, message } (pehle se unverified, 200)
 async function register({ email, password }) {
-  // schema bhi lowercase karta hai — lekin dhoondne se pehle khud karna padta hai
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
+
+  // asal password kabhi save nahi hota — sirf uska hash
+  // hash pehle — taake naya, unverified aur verified teeno raaston mein bcrypt ka waqt ek jaisa lage
+  // (unverified aur verified raaston mein hash use nahi hota, sirf waqt barabar karta hai)
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
   const existingUser = await User.findOne({ email: normalizedEmail });
-  if (existingUser) {
+  if (existingUser && existingUser.isVerified) {
     throw new ConflictError("Email already registered");
   }
 
-  // asal password kabhi save nahi hota — sirf uska hash
-  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  if (existingUser) {
+    // unverified account — kisi ne kisi aur ka email "pehle se" register kar liya ho to asli malik phans jaata
+    // is liye 409 nahi: sirf naya code. password NAHI badalte — koi bhi dobara register karke kisi ka password
+    // na badal sake; asli (aakhri) password waise bhi verify ke waqt code ke saath lagta hai (verifyEmail)
+    let otp;
+    try {
+      otp = await issueOtp(existingUser._id, "verify-email");
+    } catch (err) {
+      // ghante mein 3 ki had — email nahi, lekin jawab wahi (spam bhi ruka, enumeration bhi nahi)
+      if (err instanceof TooManyRequestsError) {
+        return { created: false, ...REGISTER_PENDING_RESPONSE };
+      }
+      throw err;
+    }
+    emailService.sendOtpEmail(existingUser.email, otp, "verify-email");
 
-  const { token, tokenHash, expires } = createVerificationToken();
+    return { created: false, ...REGISTER_PENDING_RESPONSE };
+  }
 
   const user = await User.create({
     email: normalizedEmail,
     password: passwordHash,
-    isVerified: false,
-    verificationTokenHash: tokenHash,
-    verificationTokenExpires: expires,
-    // register bhi email bhejta hai — foran resend par cooldown lagay
-    verificationEmailSentAt: new Date()
+    isVerified: false
   });
 
-  // user save hone ke baad hi link bhejo — save fail ho to link bekaar hota
+  // user save hone ke baad hi code — save fail ho to code bekaar hota
+  // naya user hai, ginti 0 se — is liye yahan 429 nahi aa sakta
+  const otp = await issueOtp(user._id, "verify-email");
+
   // await nahi — Gmail ko 1-3 second lagte hain, response email ka intezar na kare
-  // (sendVerificationEmail apne errors khud pakadta hai, isliye unhandled rejection nahi hoga)
-  emailService.sendVerificationEmail(user.email, token);
+  // (sendOtpEmail apne errors khud pakadta hai, isliye unhandled rejection nahi hoga)
+  emailService.sendOtpEmail(user.email, otp, "verify-email");
 
-  return user;
+  return { created: true, user };
 }
 
-async function verifyEmail(token) {
-  // hamara token hamesha 64 hex characters ka hota hai — kuch aur ho to DB tak jaane ki zaroorat hi nahi
-  if (!/^[a-f0-9]{64}$/.test(token)) {
-    throw new BadRequestError("Invalid verification link");
+// verify-email ki har galti ka ek hi jawab — "user nahi", "pehle se verified", "galat/expire code" alag hon
+// to koi bhi email daal kar pata kar le ke account hai ya nahi
+const INVALID_VERIFY_CODE = "Invalid or expired code";
+
+// POST /verify-email — register ke baad email par aaya code + password
+// password YAHAN lagta hai, register par nahi — code sirf email ka malik dekh sakta hai, to aakhri password usi ka
+// (warna koi kisi aur ka email apne password se register kar leta, asli malik code daalta, aur account attacker ka)
+async function verifyEmail({ email, otp, password }) {
+  const invalid = new BadRequestError(INVALID_VERIFY_CODE);
+
+  const user = await User.findOne({ email: normalizeEmail(email) });
+  // pehle se verified ho to bhi wahi jawab — uska koi "verify-email" code hota hi nahi
+  if (!user || user.isVerified) {
+    // asli code check jitna waqt — warna jaldi jawab bata deta ke yahan unverified account nahi hai
+    await bcrypt.compare(otp, DUMMY_OTP_HASH);
+    throw invalid;
   }
 
-  const tokenHash = hashToken(token);
-  const user = await User.findOne({ verificationTokenHash: tokenHash });
+  await consumeOtp(user._id, "verify-email", otp, invalid);
 
-  // istemal ho chuka (verify ke baad hash delete), resend se badal gaya, ya kabhi tha hi nahi — 410
-  if (!user) {
-    throw new GoneError("Verification link is invalid or has already been used");
-  }
-
-  if (user.verificationTokenExpires < new Date()) {
-    // message task ke mutabiq hubahu
-    throw new GoneError("link expired, request a new one.");
-  }
-
-  // verify karo aur token hata do — dobara isi link se kuch nahi hoga
-  // filter mein hash bhi — do requests ek saath aayein to sirf ek hi kamyab ho
-  const result = await User.updateOne(
-    { _id: user._id, verificationTokenHash: tokenHash },
-    {
-      $set: { isVerified: true },
-      $unset: { verificationTokenHash: "", verificationTokenExpires: "" }
-    }
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const verified = await User.findOneAndUpdate(
+    { _id: user._id, isVerified: false },
+    { $set: { isVerified: true, password: passwordHash } },
+    { returnDocument: "after" }
   );
-
-  if (result.modifiedCount === 0) {
-    throw new GoneError("Verification link is invalid or has already been used");
+  // beech mein kisi aur request ne verify kar diya (code ek hi tha, to ye hona mushkil) — dobara login karwao
+  if (!verified) {
+    throw invalid;
   }
+
+  // verify ke saath hi login — code (email ka malik) + abhi chuna hua password, dono saabit; dobara password kyun poochein
+  const token = signAccessToken(verified);
+  const refreshToken = await issueRefreshToken(verified._id);
+
+  return { message: "Email verified. You are now logged in.", token, refreshToken, user: verified };
 }
 
-// har halat mein yahi ek jawab — "nahi hai", "verified hai", "bhej di" aur "cooldown" alag alag hon
+// har halat mein yahi ek jawab — "nahi hai", "verified hai", "bhej diya" aur "had poori" alag alag hon
 // to koi bhi email daal kar pata kar le ke account hai ya nahi (account enumeration)
-const RESEND_RESPONSE = { message: "If that account exists and is not verified, a new verification link has been sent" };
+const RESEND_RESPONSE = { message: "If that account exists and is not verified, a new verification code has been sent" };
 
+// POST /resend-verification — naya verify code (purana foran band)
 async function resendVerification(email) {
-  const user = await User.findOne({ email: email.trim().toLowerCase() });
+  const user = await User.findOne({ email: normalizeEmail(email) });
 
   // user na ho ya pehle se verified ho — kuch nahi bhejna, lekin jawab wahi
   if (!user || user.isVerified) {
+    // naya code banane (bcrypt) jitna waqt — warna jaldi jawab bata deta ke unverified account nahi hai
+    await bcrypt.hash("000000", OTP_SALT_ROUNDS);
     return RESEND_RESPONSE;
   }
 
-  // naya token — purana hash overwrite ho jaata hai, isliye purana link foran band
-  const { token, tokenHash, expires } = createVerificationToken();
-  const now = new Date();
-  const cooldownStart = new Date(now.getTime() - RESEND_COOLDOWN_MS);
-
-  // cooldown check aur update ek hi query mein — do requests ek saath aayein to bhi sirf ek email jaye
-  const result = await User.updateOne(
-    {
-      _id: user._id,
-      isVerified: false,
-      $or: [
-        { verificationEmailSentAt: { $exists: false } },
-        { verificationEmailSentAt: { $lte: cooldownStart } }
-      ]
-    },
-    {
-      $set: {
-        verificationTokenHash: tokenHash,
-        verificationTokenExpires: expires,
-        verificationEmailSentAt: now
-      }
+  let otp;
+  try {
+    otp = await issueOtp(user._id, "verify-email");
+  } catch (err) {
+    // ghante mein 3 ki had — email nahi jaati, lekin 429 bhi nahi (warna 429 batata ke unverified account hai)
+    if (err instanceof TooManyRequestsError) {
+      return RESEND_RESPONSE;
     }
-  );
-
-  // cooldown chal raha hai — email nahi jaati, lekin 429 bhi nahi (warna 429 batata ke unverified account hai)
-  if (result.modifiedCount === 0) {
-    return RESEND_RESPONSE;
+    throw err;
   }
 
   // background mein — register ki tarah response email ka intezar nahi karta
-  emailService.sendVerificationEmail(user.email, token);
+  emailService.sendOtpEmail(user.email, otp, "verify-email");
 
   return RESEND_RESPONSE;
 }
 
-async function login({ email, password }) {
-  const user = await User.findOne({ email: email.trim().toLowerCase() });
+// email + password check — login isi par chalta hai
+async function checkCredentials({ email, password }) {
+  const user = await User.findOne({ email: normalizeEmail(email) });
 
   // user na mile ya password galat ho — dono mein ek hi message,
   // taake koi andaza na laga sake ke kaun sa email registered hai
   if (!user) {
+    // message hi nahi, waqt bhi ek jaisa — bcrypt na chale to jawab 200ms pehle aata aur email registered na hona pata chal jaata
+    await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
     throw new UnauthorizedError("Invalid email or password");
   }
 
@@ -182,8 +296,21 @@ async function login({ email, password }) {
   // password check ke BAAD — warna galat password wala bhi jaan leta ke email registered hai
   if (!user.isVerified) {
     // task ke mutabiq — user ko batao ke email check kare
-    throw new ForbiddenError("Please check your email to verify your account before logging in.");
+    throw new ForbiddenError("Please verify your email with the code we sent before logging in.");
   }
+
+  return user;
+}
+
+// har protected request par — token sahi hone ke bawajood user delete ho chuka ho to session khatam
+// (warna access token 15 minute tak chalta, aur delete hue user ke naam par tasks ban jaate)
+async function userExists(userId) {
+  return Boolean(await User.exists({ _id: userId }));
+}
+
+// POST /auth/login — email + password sahi aur email verified ho to tokens
+async function login({ email, password }) {
+  const user = await checkCredentials({ email, password });
 
   const token = signAccessToken(user);
   const refreshToken = await issueRefreshToken(user._id);
@@ -274,11 +401,12 @@ async function logout(refreshToken) {
 
 module.exports = {
   register,
+  verifyEmail,
   login,
   refreshSession,
   logout,
+  userExists,
   // controller ko cookie ki umar isi se — DB expiry ke barabar
   REFRESH_TOKEN_TTL_MS,
-  verifyEmail,
   resendVerification
 };

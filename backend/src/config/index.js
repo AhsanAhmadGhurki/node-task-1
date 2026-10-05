@@ -3,8 +3,8 @@ const port = process.env.PORT || 3000;
 
 module.exports = {
   port,
-  // backend ka public address — email ke links isi se bante hain
-  // production mein sirf .env mein badlo (jaise https://api.example.com); aakhri "/" hata do taake "//verify" na bane
+  // backend ka public address — https ho to refresh cookie "Secure" lagti hai
+  // production mein sirf .env mein badlo (jaise https://api.example.com); aakhri "/" hata do
   appUrl: (process.env.APP_URL || `http://localhost:${port}`).replace(/\/+$/, ""),
   // connection string .env se — password code mein nahi likhte
   mongoUri: process.env.MONGO_URI,

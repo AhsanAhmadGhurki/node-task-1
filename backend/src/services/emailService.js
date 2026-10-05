@@ -1,8 +1,8 @@
-// email bhejne ka kaam yahan — SMTP (Gmail) se asal email, saath mein console par link bhi
+// email bhejne ka kaam yahan — SMTP (Gmail) se 6-digit codes; SMTP na ho to code sirf console par
 const nodemailer = require("nodemailer");
 const config = require("../config");
 
-// SMTP user/pass .env mein hon tabhi transporter banao — warna sirf console wala link
+// SMTP user/pass .env mein hon tabhi transporter banao — warna sirf console wala code
 const transporter =
   config.smtp.user && config.smtp.pass
     ? nodemailer.createTransport({
@@ -18,32 +18,42 @@ const transporter =
       })
     : null;
 
+// har purpose ka subject aur paigham — design ek hi
+const OTP_EMAILS = {
+  "verify-email": {
+    subject: "Verify your email",
+    heading: "Verify your email",
+    intro: "Thanks for signing up! Enter this code to verify your email address.",
+    footer: "This code expires in 5 minutes. If you didn't create an account, you can ignore this email.",
+    logLabel: "Verification code"
+  }
+};
+
 // email clients (Gmail, Outlook) sirf inline styles aur tables theek dikhate hain — isliye yahi pattern
-function verificationEmailHtml(link) {
+function otpEmailHtml(otp, { heading, intro, footer }) {
   return `
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;font-family:Arial,Helvetica,sans-serif">
   <tr><td align="center">
     <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:10px;border:1px solid #e5e7eb">
       <tr><td style="padding:32px 28px;text-align:center">
-        <h1 style="margin:0 0 12px;font-size:22px;color:#111827">Verify your email</h1>
-        <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#4b5563">Thanks for signing up! Click the button below to verify your email address.</p>
-        <a href="${link}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px">Verify email</a>
-        <p style="margin:24px 0 0;font-size:13px;color:#9ca3af">This link expires in 24 hours. If you didn't create an account, you can ignore this email.</p>
+        <h1 style="margin:0 0 12px;font-size:22px;color:#111827">${heading}</h1>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.5;color:#4b5563">${intro}</p>
+        <p style="margin:0 0 20px;font-size:32px;font-weight:bold;letter-spacing:8px;color:#111827;font-family:'Courier New',monospace">${otp}</p>
+        <p style="margin:0;font-size:13px;color:#9ca3af">${footer}</p>
       </td></tr>
     </table>
   </td></tr>
 </table>`;
 }
 
-async function sendVerificationEmail(email, token) {
-  // link mein asal (raw) token jaata hai — database mein sirf uska hash hai
-  // base URL .env (APP_URL) se — production mein code nahi, sirf .env badlega
-  const link = `${config.appUrl}/verify/${token}`;
+// purpose: abhi sirf "verify-email" (register ke baad)
+async function sendOtpEmail(email, otp, purpose) {
+  const content = OTP_EMAILS[purpose];
 
-  // SMTP nahi — development mein verify karne ka yahi ek rasta, isliye sirf tab link console par
-  // SMTP ho to raw token kabhi log nahi hota — logs parhne wala link chura kar verify na kar sake
+  // SMTP nahi — development mein code dekhne ka yahi ek rasta
+  // SMTP ho to code kabhi log nahi hota — logs parhne wala code se verify na kar sake
   if (!transporter) {
-    console.log(`[dev — SMTP not configured] Verification link for ${email}: ${link}`);
+    console.log(`[dev — SMTP not configured] ${content.logLabel} for ${email}: ${otp}`);
     return;
   }
 
@@ -51,18 +61,18 @@ async function sendVerificationEmail(email, token) {
     await transporter.sendMail({
       from: `"Tasks API" <${config.smtp.user}>`,
       to: email,
-      subject: "Verify your email",
+      subject: content.subject,
       // jo email client HTML na dikhaye uske liye simple text
-      text: `Verify your email by opening this link (valid for 24 hours):\n\n${link}`,
-      html: verificationEmailHtml(link)
+      text: `${content.intro}\n\nYour code: ${otp}\n\n${content.footer}`,
+      html: otpEmailHtml(otp, content)
     });
-    console.log(`Verification email sent to ${email}`);
+    console.log(`${content.logLabel} email sent to ${email}`);
   } catch (err) {
-    // email fail ho to register/resend fail nahi karte — user save ho chuka, resend se dobara bhej sakte hain
-    console.error(`Verification email to ${email} failed:`, err.message);
+    // email fail ho to request fail nahi karti — user naya code maang sakta hai (ghante mein 3 tak)
+    console.error(`${content.logLabel} email to ${email} failed:`, err.message);
   }
 }
 
 module.exports = {
-  sendVerificationEmail
+  sendOtpEmail
 };

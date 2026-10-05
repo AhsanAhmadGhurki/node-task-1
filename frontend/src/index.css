@@ -1,318 +1,51 @@
-:root {
-  --bg: #f4f5f7;
-  --card: #ffffff;
-  --text: #1f2328;
-  --muted: #6b7280;
-  --border: #d9dce1;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --success-bg: #e8f5ec;
-  --success-text: #166534;
-  --error-bg: #fdecec;
-  --error-text: #b91c1c;
+@import "tailwindcss";
 
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: var(--text);
-  background: var(--bg);
+/* sirf theme ke colors yahan — styling saari JSX mein Tailwind classes se (src/ui/styles.js mein shared) */
+/* light/dark — system ki setting se; Tailwind ke colors (bg-card, text-muted …) inhi variables se bante hain */
+:root {
+  --app-bg: #f4f5f7;
+  --app-card: #ffffff;
+  --app-text: #1f2328;
+  --app-muted: #6b7280;
+  --app-border: #d9dce1;
+  --app-primary: #2563eb;
+  --app-primary-hover: #1d4ed8;
+  --app-success-bg: #e8f5ec;
+  --app-success-text: #166534;
+  --app-error-bg: #fdecec;
+  --app-error-text: #b91c1c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #111318;
-    --card: #1b1e24;
-    --text: #e6e8eb;
-    --muted: #9aa1ab;
-    --border: #2e333b;
-    --success-bg: #12301d;
-    --success-text: #86efac;
-    --error-bg: #3a1616;
-    --error-text: #fca5a5;
+    --app-bg: #111318;
+    --app-card: #1b1e24;
+    --app-text: #e6e8eb;
+    --app-muted: #9aa1ab;
+    --app-border: #2e333b;
+    --app-success-bg: #12301d;
+    --app-success-text: #86efac;
+    --app-error-bg: #3a1616;
+    --app-error-text: #fca5a5;
   }
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-}
-
-.page {
-  min-height: calc(100vh - 57px);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 40px 16px;
-}
-
-.card {
-  width: 100%;
-  max-width: 420px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 28px;
-}
-
-h1 {
-  margin: 0 0 20px;
-  font-size: 22px;
-}
-
-
-
-
-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-input {
-  font: inherit;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-}
-
-input:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: -1px;
-}
-
-button {
-  font: inherit;
-  font-weight: 600;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 8px;
-  background: var(--primary);
-  color: #fff;
-  cursor: pointer;
-}
-
-button:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-button.secondary {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-}
-
-button.secondary:hover:not(:disabled) {
-  background: var(--bg);
-}
-
-.message {
-  padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 18px;
-  font-size: 14px;
-}
-
-.message.success {
-  background: var(--success-bg);
-  color: var(--success-text);
-}
-
-.message.error {
-  background: var(--error-bg);
-  color: var(--error-text);
-}
-
-.muted {
-  color: var(--muted);
-  font-size: 14px;
-  margin: 0;
-}
-
-
-
-.tasks {
-  list-style: none;
-  padding: 0;
-  margin: 18px 0 0;
-  border-top: 1px solid var(--border);
-}
-
-.tasks li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.tasks .done {
-  text-decoration: line-through;
-  color: var(--muted);
-}
-
-
-.resend {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.add-task {
-  flex-direction: row;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.add-task input {
-  flex: 1;
-  min-width: 0;
-}
-
-.empty {
-  margin-top: 18px;
-}
-
-.task-label {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-  font-weight: 400;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.task-label input {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--primary);
-  cursor: pointer;
-}
-
-.task-label span {
-  overflow-wrap: anywhere;
-}
-
-button.delete {
-  background: transparent;
-  color: var(--muted);
-  font-size: 20px;
-  line-height: 1;
-  padding: 4px 10px;
-}
-
-button.delete:hover:not(:disabled) {
-  background: var(--error-bg);
-  color: var(--error-text);
-}
-
-a {
-  color: var(--primary);
-}
-
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 17px;
-  color: var(--text);
-  text-decoration: none;
-}
-
-.navbar-user {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.navbar-user .muted {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-button.small {
-  padding: 6px 12px;
-  font-size: 14px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.card-header h1 {
-  margin: 0;
-}
-
-.hint {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--muted);
-}
-
-.switch {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.center {
-  text-align: center;
-}
-
-.loader {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 24px 0;
-}
-
-.spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* inline — utility class seedha var() use kare, taake dark mode mein variable badalte hi rang badle */
+@theme inline {
+  --color-bg: var(--app-bg);
+  --color-card: var(--app-card);
+  --color-text: var(--app-text);
+  --color-muted: var(--app-muted);
+  --color-border: var(--app-border);
+  --color-primary: var(--app-primary);
+  --color-primary-hover: var(--app-primary-hover);
+  --color-success-bg: var(--app-success-bg);
+  --color-success-text: var(--app-success-text);
+  --color-error-bg: var(--app-error-bg);
+  --color-error-text: var(--app-error-text);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* text-sm / text-xs apni line-height bhi lagate hain (1.43 / 1.33) — pehle wali CSS mein browser ki "normal" thi;
+     wahi rakho, warna buttons/navbar uncha ho kar page mein scrollbar aa jaata */
+  --text-sm--line-height: normal;
+  --text-xs--line-height: normal;
 }

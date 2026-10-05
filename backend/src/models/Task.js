@@ -7,7 +7,9 @@ const taskSchema = new mongoose.Schema(
       type: String,
       required: [true, "Title is required"],
       // aage peeche ke spaces hata do — "   " khali string ban jaata hai aur required fail ho jaata hai
-      trim: true
+      trim: true,
+      // validation middleware bhi yahi had lagata hai — schema mein bhi, taake koi aur raasta (seed, script) bhi na tode
+      maxlength: [200, "Title must be at most 200 characters"]
     },
     completed: {
       type: Boolean,

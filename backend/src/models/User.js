@@ -19,22 +19,16 @@ const userSchema = new mongoose.Schema(
     },
     isVerified: {
       type: Boolean,
-      // naya user email verify hone tak unverified rehta hai
+      // naya user email ka code daalne tak unverified rehta hai (code models/Otp.js mein)
       default: false
-    },
-    // verification token ka SHA-256 hash — asal token sirf link mein jaata hai, DB mein kabhi nahi
-    verificationTokenHash: String,
-    // is waqt ke baad link kaam nahi karega (register/resend se 24 ghante)
-    verificationTokenExpires: Date,
-    // aakhri verification email kab bheji — resend par 60 second ka cooldown isi se
-    // DB mein hai taake server restart ya IP badalne se bhi cooldown na toote
-    verificationEmailSentAt: Date
+    }
   },
   {
     // createdAt aur updatedAt khud ban jaate hain
     timestamps: true,
     toJSON: {
-      // res.json(user) mein password ya token ka hash kabhi bahar na jaye
+      // res.json(user) mein password ka hash kabhi bahar na jaye
+      // purane users mein link wale fields (verificationToken…) reh gaye hon to woh bhi nahi
       transform(doc, ret) {
         delete ret.password;
         delete ret.verificationTokenHash;
