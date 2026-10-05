@@ -1,2 +1,4 @@
 node_modules/
-.env
+# .env, .env.local, .env.production waghaira — sab secrets wali files git se bahar; sirf example andar
+.env*
+!.env.example

@@ -14,7 +14,8 @@ module.exports = {
   // email bhejne ki settings — default Gmail; user/pass na hon to email nahi jaati, sirf console
   smtp: {
     host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT) || 465,
+    // validateEnv pehle hi 1–65535 check kar chuka — yahan sirf "na di ho to 465"
+    port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 465,
     // Gmail address
     user: process.env.SMTP_USER,
     // Gmail ka asal password nahi — Google ka 16-character "App Password"

@@ -15,9 +15,16 @@ async function startServer() {
 
   try {
     await connectDB();
+  } catch (error) {
+    console.error("MongoDB connection failed:", error.message);
+    // DB ke baghair API bekaar hai — process band kar do
+    process.exit(1);
+  }
 
+  // DB aur server ke errors alag — pehle ek hi try mein the, to port ki galti bhi "MongoDB connection failed" dikhti thi
+  try {
     app.listen(config.port, (error) => {
-      // port pehle se busy ho to error yahan aata hai
+      // port pehle se busy ho to error yahan (callback mein) aata hai
       if (error) {
         console.error("Server start nahi hua:", error.message);
         process.exit(1);
@@ -25,8 +32,8 @@ async function startServer() {
       console.log(`Tasks API is running: http://localhost:${config.port}/tasks`);
     });
   } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
-    // DB ke baghair API bekaar hai — process band kar do
+    // galat port (jaise range se bahar) par listen foran throw karta hai — callback tak nahi pahunchta
+    console.error("Server start nahi hua:", error.message);
     process.exit(1);
   }
 }

@@ -23,5 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# API key yahan hai — git mein nahi jani chahiye
-.env
+# API key yahan hai — .env aur uske saare variants (.env.local, .env.production…) git mein nahi jaane chahiye; sirf example andar
+.env*
+!.env.example
