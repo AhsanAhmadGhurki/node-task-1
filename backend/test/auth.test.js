@@ -265,3 +265,82 @@ test("unverified email dobara register → password NAHI badalta, sirf naya code
   assert.equal((await post("/auth/login", { email: "keep@example.com", password: "FirstPass1" })).status, 403);
   assert.equal((await post("/auth/login", { email: "keep@example.com", password: "SecondPass2" })).status, 401);
 });
+
+test("email ka text: expiry config se (hardcode nahi), code text + html dono mein", () => {
+  const { otpEmailContent } = require("../src/services/emailService");
+  const minutes = config.otpTtlMs / 60000;
+  const content = otpEmailContent("042137", "verify-email");
+  assert.equal(content.subject, "Verify your email");
+  assert.ok(content.text.includes(`expires in ${minutes} minutes`), content.text);
+  assert.ok(content.html.includes(`expires in ${minutes} minutes`));
+  assert.ok(content.text.includes("042137") && content.html.includes("042137"));
+});
+
+// refresh cookie ke saath request — ctx.request cookie nahi bhejta
+const RefreshToken = () => mongoose.model("RefreshToken");
+const cookieToken = (setCookie) => /refreshToken=([^;]*)/.exec(setCookie || "")?.[1];
+const hashOf = (token) => require("node:crypto").createHash("sha256").update(token).digest("hex");
+const withCookie = async (route, token) => {
+  const headers = { "x-api-key": config.apiKey };
+  if (token) {
+    headers.cookie = `refreshToken=${token}`;
+  }
+  const res = await fetch(ctx.baseUrl + route, { method: "POST", headers });
+  return { status: res.status, json: await res.json(), cookie: res.headers.get("set-cookie") };
+};
+
+test("refresh cookie: httpOnly, Strict, /auth, 7 din; DB mein sirf SHA-256 hash; access token 15 min", async () => {
+  const res = await registerAndVerify("cookie@example.com");
+  assert.match(res.cookie, /HttpOnly/i);
+  assert.match(res.cookie, /SameSite=Strict/i);
+  assert.match(res.cookie, /Path=\/auth/);
+  assert.match(res.cookie, /Max-Age=604800/);
+  // localhost (http) par Secure nahi — APP_URL https ho tab lagta hai
+  assert.equal(/Secure/.test(res.cookie), config.appUrl.startsWith("https://"));
+
+  const token = cookieToken(res.cookie);
+  assert.ok(!JSON.stringify(res.json).includes(token), "refresh token JSON body mein nahi");
+  const doc = await RefreshToken().findOne({ tokenHash: hashOf(token) });
+  assert.ok(doc, "DB mein hash se milta hai");
+  assert.equal(await RefreshToken().countDocuments({ tokenHash: token }), 0, "raw token DB mein nahi");
+
+  const payload = JSON.parse(Buffer.from(res.json.token.split(".")[1], "base64url"));
+  assert.equal(payload.exp - payload.iat, 15 * 60);
+});
+
+test("refresh: rotation; galat / missing / expired / logout wala token → 401", async () => {
+  const first = cookieToken((await registerAndVerify("rotate@example.com")).cookie);
+
+  const rotated = await withCookie("/auth/refresh", first);
+  assert.equal(rotated.status, 200);
+  assert.ok(rotated.json.token);
+  const second = cookieToken(rotated.cookie);
+  assert.ok(second && second !== first, "nayi cookie");
+
+  assert.equal((await withCookie("/auth/refresh", "not-a-real-token")).status, 401);
+  assert.equal((await withCookie("/auth/refresh", null)).status, 401);
+
+  // logout → revoke
+  assert.equal((await withCookie("/auth/logout", second)).status, 200);
+  assert.equal((await withCookie("/auth/refresh", second)).status, 401);
+
+  // expired (TTL index ke hatane se pehle bhi band)
+  const third = cookieToken((await post("/auth/login", { email: "rotate@example.com", password: PASSWORD })).cookie);
+  await RefreshToken().updateOne({ tokenHash: hashOf(third) }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
+  assert.equal((await withCookie("/auth/refresh", third)).status, 401);
+});
+
+test("refresh reuse: 30s ke andar race (nayi session bachi), baad mein chori → user ke saare tokens band", async () => {
+  const oldToken = cookieToken((await registerAndVerify("reuse@example.com")).cookie);
+  const newToken = cookieToken((await withCookie("/auth/refresh", oldToken)).cookie);
+
+  // do tab ka race — purana token 401, lekin naya chalta rehta hai
+  assert.equal((await withCookie("/auth/refresh", oldToken)).status, 401);
+  const stillActive = await RefreshToken().findOne({ tokenHash: hashOf(newToken) });
+  assert.equal(stillActive.revokedAt, undefined);
+
+  // grace guzar gaya — purana token phir aaya to chori: naya bhi band
+  await RefreshToken().updateOne({ tokenHash: hashOf(oldToken) }, { $set: { revokedAt: new Date(Date.now() - 60 * 1000) } });
+  assert.equal((await withCookie("/auth/refresh", oldToken)).status, 401);
+  assert.equal((await withCookie("/auth/refresh", newToken)).status, 401);
+});

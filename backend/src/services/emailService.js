@@ -24,7 +24,9 @@ const OTP_EMAILS = {
     subject: "Verify your email",
     heading: "Verify your email",
     intro: "Thanks for signing up! Enter this code to verify your email address.",
-    footer: "This code expires in 5 minutes. If you didn't create an account, you can ignore this email.",
+    // waqt config se — "5 minutes" hardcode hota to OTP_TTL_MS badalne par email jhoot bolti
+    footer: (minutes) =>
+      `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}. If you didn't create an account, you can ignore this email.`,
     logLabel: "Verification code"
   }
 };
@@ -46,9 +48,22 @@ function otpEmailHtml(otp, { heading, intro, footer }) {
 </table>`;
 }
 
+// email ka poora maal (subject, text, html) — alag function taake test bina SMTP ke text check kar sake
+function otpEmailContent(otp, purpose) {
+  const { subject, heading, intro, footer, logLabel } = OTP_EMAILS[purpose];
+  const footerText = footer(Math.round(config.otpTtlMs / 60000));
+  return {
+    subject,
+    logLabel,
+    // jo email client HTML na dikhaye uske liye simple text
+    text: `${intro}\n\nYour code: ${otp}\n\n${footerText}`,
+    html: otpEmailHtml(otp, { heading, intro, footer: footerText })
+  };
+}
+
 // purpose: abhi sirf "verify-email" (register ke baad)
 async function sendOtpEmail(email, otp, purpose) {
-  const content = OTP_EMAILS[purpose];
+  const content = otpEmailContent(otp, purpose);
 
   // SMTP nahi — development mein code dekhne ka yahi ek rasta
   // SMTP ho to code kabhi log nahi hota — logs parhne wala code se verify na kar sake
@@ -62,9 +77,8 @@ async function sendOtpEmail(email, otp, purpose) {
       from: `"Tasks API" <${config.smtp.user}>`,
       to: email,
       subject: content.subject,
-      // jo email client HTML na dikhaye uske liye simple text
-      text: `${content.intro}\n\nYour code: ${otp}\n\n${content.footer}`,
-      html: otpEmailHtml(otp, content)
+      text: content.text,
+      html: content.html
     });
     console.log(`${content.logLabel} email sent to ${email}`);
   } catch (err) {
@@ -74,5 +88,6 @@ async function sendOtpEmail(email, otp, purpose) {
 }
 
 module.exports = {
-  sendOtpEmail
+  sendOtpEmail,
+  otpEmailContent
 };
