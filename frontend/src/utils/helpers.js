@@ -59,3 +59,13 @@ export function passwordRuleError(password) {
 // task title ki had — backend ki tarah trim ke baad 200 (middleware/validation.js titleError)
 // naya task (TaskForm) aur edit (TaskItem) dono yahi istemal karte hain
 export const MAX_TITLE_LENGTH = 200
+
+// avatar — backend (config/upload.js) jaise hi rules aur messages; galat file par request hi na jaye
+export const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+
+export function avatarFileError(file) {
+  if (!AVATAR_TYPES.includes(file.type)) return 'Avatar must be a JPEG, PNG or WebP image.'
+  if (file.size > MAX_AVATAR_BYTES) return 'Avatar file is too large. Maximum size is 2 MB.'
+  return null
+}

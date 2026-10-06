@@ -1,4 +1,6 @@
 // saari settings ek jagah — process.env sirf yahin padhte hain
+const path = require("path");
+
 const port = process.env.PORT || 3000;
 
 module.exports = {
@@ -14,6 +16,8 @@ module.exports = {
   // email code kitni der chalta hai — authService (DB expiry) aur email ka text dono yahin se,
   // taake badalne par email galat waqt na bataye
   otpTtlMs: 5 * 60 * 1000,
+  // avatars ka folder (backend/uploads/avatars) — upload.js yahan save karta hai, userService yahin se mitata hai
+  avatarUploadDir: path.join(__dirname, "../../uploads/avatars"),
   // email bhejne ki settings — default Gmail; user/pass na hon to email nahi jaati, sirf console
   smtp: {
     host: process.env.SMTP_HOST || "smtp.gmail.com",
