@@ -118,7 +118,7 @@ export default function Dashboard() {
           Refresh
         </button>
       </div>
-      <Alert alert={alert} />
+      <Alert alert={alert} toast />
 
       <TaskForm onAdd={handleAdd} disabled={busy} />
 

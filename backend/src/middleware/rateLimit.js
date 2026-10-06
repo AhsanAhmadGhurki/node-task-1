@@ -69,11 +69,12 @@ const loginLimiter = createLimiter({
   skipSuccessfulRequests: true
 });
 
-// email verify ka code (/verify-email) — har code par 5 koshishen DB mein;
+// email verify ka code (/verify-email) — ek account ki hifazat DB mein (har code par 5 koshishen, ghante mein 3 codes)
 // ye IP limit alag: ek IP bahut saare accounts par 5-5 guess na kar sake. sirf galat koshishen ginti mein
+// had 50 (login jaisi): 10 thi to ek shakhs ke galat codes se poore network (office/WiFi) ka verify band
 const otpVerifyLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: 50,
   message: "Too many failed code attempts. Please try again in 15 minutes.",
   skipSuccessfulRequests: true
 });

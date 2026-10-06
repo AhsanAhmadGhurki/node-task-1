@@ -27,7 +27,12 @@ test("resend: ek email par 60s mein ek hi request; har email par, account ho ya 
   assert.equal((await resend("nobody@example.com")).status, 429);
 });
 
-test("register: ek IP se ghante mein 10 — 11th par 429", async () => {
+test("register: ek IP se ghante mein 10 — 11th par 429; validation ki galtiyan (400) ginti mein nahi", async () => {
+  // typos — limit nahi khaate (pehle ye bhi gin jaate the)
+  for (let i = 0; i < 12; i++) {
+    const invalid = await ctx.post("/auth/register", { email: `typo${i}@example.com`, password: "short" });
+    assert.equal(invalid.status, 400);
+  }
   // pehle test ne 1 register kiya — ab tak ki ginti ke saath 11th tak
   const statuses = [];
   for (let i = 0; i < 10; i++) {
@@ -61,4 +66,16 @@ test("login: account lockout (5) IP limit (50) se pehle — ek account ki galtiy
   for (let i = 0; i < 50; i++) last = await login(`spray${i}@example.com`, "Wrong1234");
   assert.equal(last.status, 429);
   assert.match(last.json.message, /^Too many failed login attempts from this network\. Please try again in \d+ minutes?\.$/);
+});
+
+test("verify-email: IP had 50 galat (10 nahi) — ek network par kuch galat codes se baaki users nahi rukte", async () => {
+  const verify = (i) => ctx.post("/auth/verify-email", { email: `nobody-v${i}@example.com`, otp: "123456", password: "Valid1234" });
+  // 11th galat code — pehle yahan 429 aata tha
+  for (let i = 0; i < 11; i++) {
+    assert.equal((await verify(i)).status, 400);
+  }
+  let last;
+  for (let i = 11; i <= 50; i++) last = await verify(i);
+  assert.equal(last.status, 429);
+  assert.equal(last.json.message, "Too many failed code attempts. Please try again in 15 minutes.");
 });

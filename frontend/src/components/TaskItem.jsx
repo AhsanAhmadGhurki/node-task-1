@@ -1,4 +1,4 @@
-// ek task ki line — checkbox (complete/pending), ✎ (title edit) aur × (delete)
+// ek task ki line — checkbox (complete/pending), ✎ (title edit) aur × (delete, pehle "Delete karein?")
 import { useId, useState } from 'react'
 import { button, cn, hintText, input } from '../ui/styles'
 import { MAX_TITLE_LENGTH } from '../utils/helpers'
@@ -11,6 +11,8 @@ const iconButton =
 export default function TaskItem({ task, onToggle, onDelete, onRename, disabled }) {
   // null = edit band; string = input mein abhi wala title
   const [draft, setDraft] = useState(null)
+  // × dabane par foran delete nahi — wapas na aane wala kaam, pehle wahin poocho
+  const [confirming, setConfirming] = useState(false)
   const counterId = useId()
 
   function cancel() {
@@ -29,9 +31,36 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
     }
   }
 
+  // har mode ke <li> ki alag key — warna React × wala button hi "Haan, delete" bana deta (focus usi par
+  // reh jaata, autoFocus nahi lagta) aur × ke baad Enter foran delete kar deta
+  if (confirming) {
+    return (
+      <li key="confirm" className="flex items-center justify-between gap-3 border-b border-border py-2.5">
+        <span className="min-w-0 flex-1 text-[15px] wrap-anywhere">
+          Delete karein: <strong>{task.title}</strong>?
+        </span>
+        <span className="flex shrink-0 gap-2">
+          {/* focus "Nahi" par — Enter galti se dabe to bhi kuch na mitey; Esc bhi wapas */}
+          <button
+            className={button({ variant: 'secondary', size: 'sm' })}
+            onClick={() => setConfirming(false)}
+            onKeyDown={(e) => e.key === 'Escape' && setConfirming(false)}
+            disabled={disabled}
+            autoFocus
+          >
+            Nahi
+          </button>
+          <button className={button({ variant: 'danger', size: 'sm' })} onClick={() => onDelete(task)} disabled={disabled}>
+            Haan, delete
+          </button>
+        </span>
+      </li>
+    )
+  }
+
   if (draft !== null) {
     return (
-      <li className="border-b border-border py-2.5">
+      <li key="edit" className="border-b border-border py-2.5">
         <form className="flex items-start gap-2" onSubmit={handleSave}>
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <input
@@ -64,7 +93,7 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
   }
 
   return (
-    <li className="flex items-center justify-between gap-3 border-b border-border py-2.5">
+    <li key="view" className="flex items-center justify-between gap-3 border-b border-border py-2.5">
       <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-[15px] font-normal">
         <input
           type="checkbox"
@@ -88,7 +117,7 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
         </button>
         <button
           className={cn(iconButton, 'hover:enabled:bg-error-bg hover:enabled:text-error-text')}
-          onClick={() => onDelete(task)}
+          onClick={() => setConfirming(true)}
           disabled={disabled}
           aria-label={`Delete ${task.title}`}
           title="Delete"

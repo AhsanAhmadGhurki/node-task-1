@@ -8,9 +8,11 @@ const { registerLimiter, loginLimiter, resendLimiter, resendEmailCooldown, otpVe
 // alias aur naya path ek hi route + ek hi limiter — dono raston ki ginti saath (alias se limit nahi bachti)
 const router = express.Router();
 
-// register par password ke rules (8+ characters, ek number, 72 bytes tak) — login par nahi
+// register par password ke rules (8+ characters, letter + number, 72 bytes tak) — login par nahi
 // register asal email bhejta hai — ek IP se ghante mein had se zyada nahi
-router.post(["/auth/register", "/register"], registerLimiter, validateRegister, authController.register);
+// validation limiter se PEHLE — kamzor password / galat email (400) ginti mein nahi, warna 3-4 typos se
+// user (aur poore network) ki 10 khatam; jo email bhejta (201/200) ya bcrypt chalata (409) woh ginta hai
+router.post(["/auth/register", "/register"], validateRegister, registerLimiter, authController.register);
 
 // code guess karna — har code par 5 koshishen DB mein, aur ye IP limit alag
 router.post(["/auth/verify-email", "/verify-email"], otpVerifyLimiter, validateOtpVerify, authController.verifyEmail);

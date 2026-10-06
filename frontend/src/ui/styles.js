@@ -19,13 +19,15 @@ export const hintText = 'text-xs font-normal'
 export const hint = `${hintText} text-muted`
 export const link = 'text-primary underline'
 
-// button — variant: primary (neela) / secondary (border wala); size: md / compact (input ke saath) / sm
+// button — variant: primary (neela) / secondary (border wala) / danger (laal); size: md / compact (input ke saath) / sm
 // padding aur font-weight option se — ek element par px-4 aur px-3 (ya font-semibold aur font-medium) dono hon
 // to kaun jeete, Tailwind mein tay nahi; upar se class jodne ke bajaye option badlo
 const buttonBase = 'cursor-pointer rounded-lg disabled:cursor-default disabled:opacity-60'
 const buttonVariants = {
   primary: 'bg-primary text-white hover:enabled:bg-primary-hover',
   secondary: 'border border-border bg-transparent text-text hover:enabled:bg-bg',
+  // mitane jaisa kaam (delete) — laal, taake galti se na dabe
+  danger: 'bg-error-bg text-error-text hover:enabled:opacity-80',
 }
 const buttonSizes = {
   md: 'px-4 py-2.5',
