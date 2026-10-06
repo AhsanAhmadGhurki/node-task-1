@@ -157,3 +157,23 @@ test("token nahi → 401, Multer chala hi nahi (disk par kuch nahi)", async () =
   assert.equal(res.status, 401);
   assert.deepEqual(userFiles(), []);
 });
+
+test("upload hui tasveer GET /uploads/avatars/<file> par milti hai — sahi type + nosniff; API key zaroori; folder/bahar ki file nahi", async () => {
+  const res = await upload([{ type: "image/webp", name: "me.webp", bytes: 300 }]);
+  assert.equal(res.status, 200);
+
+  const get = (route, apiKey = config.apiKey) => fetch(ctx.baseUrl + route, { headers: apiKey ? { "x-api-key": apiKey } : {} });
+
+  const served = await get(res.json.avatar);
+  assert.equal(served.status, 200);
+  assert.equal(served.headers.get("content-type"), "image/webp");
+  assert.equal(served.headers.get("x-content-type-options"), "nosniff");
+  assert.equal((await served.arrayBuffer()).byteLength, 300);
+
+  assert.equal((await get(res.json.avatar, null)).status, 401, "API key ke bina nahi");
+  assert.equal((await get("/uploads/avatars/")).status, 404, "folder ki list nahi");
+  assert.equal((await get("/uploads/avatars/nope.png")).status, 404);
+  // folder se bahar (.env, source) kabhi nahi
+  assert.equal((await get("/uploads/avatars/..%2f..%2f.env")).status, 404);
+  assert.equal((await get("/uploads/avatars/../../package.json")).status, 404);
+});

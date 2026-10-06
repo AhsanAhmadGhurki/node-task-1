@@ -16,6 +16,16 @@ export function AuthProvider({ children }) {
     setNotice(null)
   }, [])
 
+  // user ki koi field badli (jaise naya avatar) — state aur localStorage dono, taake reload par bhi wahi
+  const updateUser = useCallback((changes) => {
+    setSession((current) => {
+      if (!current) return current
+      const next = { ...current, user: { ...current.user, ...changes } }
+      saveSession(next)
+      return next
+    })
+  }, [])
+
   // sirf browser ki taraf se — localStorage saaf, state khaali, login page par paigham
   const clearLocalSession = useCallback((reason = null) => {
     clearSession()
@@ -43,8 +53,8 @@ export function AuthProvider({ children }) {
   }, [clearLocalSession])
 
   const value = useMemo(
-    () => ({ user: session?.user ?? null, token: session?.token ?? null, login, logout, notice, setNotice }),
-    [session, login, logout, notice],
+    () => ({ user: session?.user ?? null, token: session?.token ?? null, login, logout, updateUser, notice, setNotice }),
+    [session, login, logout, updateUser, notice],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
