@@ -2,3 +2,5 @@ node_modules/
 # .env, .env.local, .env.production waghaira — sab secrets wali files git se bahar; sirf example andar
 .env*
 !.env.example
+# users ki upload ki hui files (avatars) — data hai, code nahi; git mein kabhi nahi
+uploads/

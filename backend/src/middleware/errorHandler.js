@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const multer = require("multer");
 
 // centralized error handler — 4 parameters (err pehle) se Express isay error handler maanta hai
 // kisi bhi route mein throw hua error seedha yahan aata hai
@@ -28,6 +29,23 @@ function errorHandler(err, req, res, next) {
   // MongoDB ka message ("dup key: { email: ... }") nahi bhejte — apna fixed message
   if (err.code === 11000) {
     return res.status(409).json({ message: "Email already registered" });
+  }
+
+  // Multer (avatar upload) ki galtiyan — client ki galti, lekin MulterError par statusCode nahi hota,
+  // is liye yahan na pakdo to neeche generic 500 ban jaata
+  if (err instanceof multer.MulterError) {
+    // upload.js ki 2 MB had se badi file
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ message: "Avatar file is too large. Maximum size is 2 MB." });
+    }
+
+    // upload.single("avatar") — file kisi aur naam ("photo", "image"…) se aayi; chupke se ignore nahi, reject
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({ message: 'Only the "avatar" file field is allowed.' });
+    }
+
+    // baaki (jaise ek se zyada file — LIMIT_FILE_COUNT) — err.message nahi, apna fixed message
+    return res.status(400).json({ message: "Invalid file upload." });
   }
 
   // apni error classes (NotFoundError waghaira) aur body-parser ke 4xx — inke messages hum ne khud likhe hain

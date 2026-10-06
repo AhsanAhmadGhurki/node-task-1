@@ -22,6 +22,12 @@ const userSchema = new mongoose.Schema(
       // naya user email ka code daalne tak unverified rehta hai (code models/Otp.js mein)
       default: false
     },
+    // profile picture ka path (jaise "/uploads/avatars/<id>-<time>.jpg") — file khud disk par, DB mein sirf path
+    // null = abhi koi picture nahi
+    avatar: {
+      type: String,
+      default: null
+    },
     // lagataar galat password — 5 par account 15 minute band (authService.checkCredentials)
     // DB mein — server restart se lock nahi tootta; sahi password par 0
     failedLoginAttempts: {
