@@ -55,3 +55,7 @@ export function passwordRuleError(password) {
   if (!/\d/.test(password)) return 'Password must contain at least one number'
   return null
 }
+
+// task title ki had — backend ki tarah trim ke baad 200 (middleware/validation.js titleError)
+// naya task (TaskForm) aur edit (TaskItem) dono yahi istemal karte hain
+export const MAX_TITLE_LENGTH = 200

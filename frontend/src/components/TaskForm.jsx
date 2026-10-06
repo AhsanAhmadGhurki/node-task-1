@@ -1,9 +1,7 @@
 // naya task likhne ka form — parent (Dashboard) asal API call karta hai
 import { useState } from 'react'
 import { button, cn, hintText, input } from '../ui/styles'
-
-// backend ki had — trim ke baad 200 (middleware/validation.js titleError)
-const MAX_TITLE_LENGTH = 200
+import { MAX_TITLE_LENGTH } from '../utils/helpers'
 
 // onAdd(title) true lautaye to input khaali kar do (fail par user ka likha hua na mitey)
 export default function TaskForm({ onAdd, disabled }) {

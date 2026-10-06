@@ -1,4 +1,4 @@
-// /dashboard — logged-in user ke tasks: dekhna, add, complete, delete
+// /dashboard — logged-in user ke tasks: dekhna, add, complete, title edit, delete
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createTask, deleteTask, getTasks, updateTask } from '../api/taskApi'
 import Alert from '../components/Alert'
@@ -93,6 +93,15 @@ export default function Dashboard() {
     }
   }
 
+  // title badlo — sirf title bhejo (completed waisa hi rehta hai); true = kamyab, TaskItem edit band kare
+  async function handleRename(task, title) {
+    const updated = await run(() => updateTask(task._id, { title }), { onNotFound: () => removeLocally(task) })
+    if (!updated) return false
+    setTasks((current) => current.map((t) => (t._id === task._id ? updated : t)))
+    setAlert({ ok: true, status: 200, text: `Task renamed: ${updated.title}` })
+    return true
+  }
+
   async function handleDelete(task) {
     const result = await run(() => deleteTask(task._id), { onNotFound: () => removeLocally(task) })
     if (result) {
@@ -120,7 +129,14 @@ export default function Dashboard() {
       ) : (
         <ul className="mt-[18px] border-t border-border">
           {tasks.map((task) => (
-            <TaskItem key={task._id} task={task} onToggle={handleToggle} onDelete={handleDelete} disabled={busy} />
+            <TaskItem
+              key={task._id}
+              task={task}
+              onToggle={handleToggle}
+              onDelete={handleDelete}
+              onRename={handleRename}
+              disabled={busy}
+            />
           ))}
         </ul>
       )}
