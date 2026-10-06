@@ -21,6 +21,17 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       // naya user email ka code daalne tak unverified rehta hai (code models/Otp.js mein)
       default: false
+    },
+    // lagataar galat password — 5 par account 15 minute band (authService.checkCredentials)
+    // DB mein — server restart se lock nahi tootta; sahi password par 0
+    failedLoginAttempts: {
+      type: Number,
+      default: 0
+    },
+    // is waqt tak login band — null ya guzra hua waqt = band nahi
+    lockUntil: {
+      type: Date,
+      default: null
     }
   },
   {
@@ -31,6 +42,9 @@ const userSchema = new mongoose.Schema(
       // purane users mein link wale fields (verificationToken…) reh gaye hon to woh bhi nahi
       transform(doc, ret) {
         delete ret.password;
+        // lockout ki andar ki halat — client ko nahi chahiye (login ka jawab hi batata hai)
+        delete ret.failedLoginAttempts;
+        delete ret.lockUntil;
         delete ret.verificationTokenHash;
         delete ret.verificationTokenExpires;
         delete ret.verificationEmailSentAt;

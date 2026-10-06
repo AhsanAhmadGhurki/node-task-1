@@ -12,6 +12,7 @@ const UnauthorizedError = require("../utils/UnauthorizedError");
 const BadRequestError = require("../utils/BadRequestError");
 const ForbiddenError = require("../utils/ForbiddenError");
 const TooManyRequestsError = require("../utils/TooManyRequestsError");
+const LockedError = require("../utils/LockedError");
 
 // bcrypt ka cost — jitna zyada, utna slow (aur brute force utna mushkil)
 // purane cost-10 hashes bhi login par chalte hain — cost hash ke andar likha hota hai
@@ -37,6 +38,11 @@ const OTP_WINDOW_MS = 60 * 60 * 1000;
 // bcrypt — code sirf 10 lakh mein se ek hai, SHA-256 hota to DB leak par second mein toot jaata
 // cost 10 (password wale 12 se kam) — code 5 minute ka hai, har request par 250ms kyun lagayein
 const OTP_SALT_ROUNDS = 10;
+
+// account lockout — itne lagataar galat password par account itni der band
+// (IP limiter alag hai — ye ek account ko bachata hai, IP limiter bahut saare accounts par hamle ko)
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
 // timing se enumeration na ho — user na mile tab bhi utna hi bcrypt kaam karo jitna mile to hota
 // (warna "na-maujood email" 2ms aur "galat password" 220ms mein jawab deta, message ek hone ke bawajood)
@@ -127,6 +133,9 @@ async function consumeOtp(userId, purpose, otp, invalid) {
   );
 
   if (!record) {
+    // active code nahi (expire / 5 koshishen poori / pehle hi istemal) — phir bhi utna hi bcrypt kaam
+    // warna bina bcrypt foran jawab aata aur waqt se pata chal jaata ke is account par abhi code chal raha hai ya nahi
+    await bcrypt.compare(otp, DUMMY_OTP_HASH);
     throw invalid;
   }
 
@@ -275,22 +284,79 @@ async function resendVerification(email) {
   return RESEND_RESPONSE;
 }
 
+// band account ka jawab — kitne minute baaki (upar round, "0 minutes" kabhi nahi) + Retry-After seconds
+function lockedError(lockUntil) {
+  const remainingMs = lockUntil.getTime() - Date.now();
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60000));
+  return new LockedError(
+    `Account locked due to too many failed login attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+    Math.max(1, Math.ceil(remainingMs / 1000))
+  );
+}
+
+// galat password — ginti atomic +1; 5 par account band (aur 423)
+async function recordFailedLogin(userId) {
+  // $inc ek hi query mein — 10 parallel galat requests bhi har ek gini jaati hain (padh kar +1 likhne mein ginti chhoot jaati)
+  // shart: abhi band na ho — parallel requests jo lock se pehle padh chuki thin, lock ke baad ginti na chadhayein
+  // (warna lock khatam hote hi ginti 5+ par hoti aur pehli hi galti par phir lock)
+  const updated = await User.findOneAndUpdate(
+    { _id: userId, $or: [{ lockUntil: null }, { lockUntil: { $lte: new Date() } }] },
+    { $inc: { failedLoginAttempts: 1 } },
+    { returnDocument: "after" }
+  );
+
+  if (!updated) {
+    // beech mein kisi aur request ne band kar diya — wahi lock batao (user mit gaya ho to 401)
+    const current = await User.findById(userId, { lockUntil: 1 });
+    if (current && current.lockUntil && current.lockUntil > new Date()) {
+      throw lockedError(current.lockUntil);
+    }
+    throw new UnauthorizedError("Invalid email or password");
+  }
+
+  if (updated.failedLoginAttempts < MAX_LOGIN_ATTEMPTS) {
+    throw new UnauthorizedError("Invalid email or password");
+  }
+
+  // 5vi galti — band karo, aur ginti 0 se (lock khatam hone par phir 5 koshishen)
+  // shart: abhi pehle se band na ho — do parallel 5vi galtiyan lock ka waqt aage na khiskayein
+  const lockUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
+  await User.updateOne(
+    { _id: userId, $or: [{ lockUntil: null }, { lockUntil: { $lte: new Date() } }] },
+    { $set: { lockUntil, failedLoginAttempts: 0 } }
+  );
+  const current = await User.findById(userId, { lockUntil: 1 });
+  throw lockedError((current && current.lockUntil) || lockUntil);
+}
+
 // email + password check — login isi par chalta hai
+// order: user → band to nahi? → password (galat par ginti/lock) → sahi par ginti reset → verified?
 async function checkCredentials({ email, password }) {
   const user = await User.findOne({ email: normalizeEmail(email) });
 
   // user na mile ya password galat ho — dono mein ek hi message,
   // taake koi andaza na laga sake ke kaun sa email registered hai
+  // na-maujood email ka lockout nahi rakhte (fake accounts ki halat DB mein nahi) — IP limiter unhe rokta hai
   if (!user) {
     // message hi nahi, waqt bhi ek jaisa — bcrypt na chale to jawab 200ms pehle aata aur email registered na hona pata chal jaata
     await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
     throw new UnauthorizedError("Invalid email or password");
   }
 
+  // band hai to SAHI password bhi nahi — password check se pehle (band waqt mein ginti bhi nahi badhti)
+  if (user.lockUntil && user.lockUntil > new Date()) {
+    throw lockedError(user.lockUntil);
+  }
+
   // bcrypt hash se salt khud nikaal kar compare karta hai
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    throw new UnauthorizedError("Invalid email or password");
+    await recordFailedLogin(user._id);
+  }
+
+  // sahi password — lagataar galtiyon ki ginti khatam (purana khatam hua lock bhi saaf)
+  if (user.failedLoginAttempts > 0 || user.lockUntil) {
+    await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, lockUntil: null } });
   }
 
   // password check ke BAAD — warna galat password wala bhi jaan leta ke email registered hai

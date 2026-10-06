@@ -32,6 +32,10 @@ function errorHandler(err, req, res, next) {
 
   // apni error classes (NotFoundError waghaira) aur body-parser ke 4xx — inke messages hum ne khud likhe hain
   if (err.statusCode && err.statusCode < 500) {
+    // lock/limit wale errors — client ko pata chale kitni der baad dobara koshish kare
+    if (err.retryAfterSeconds) {
+      res.set("Retry-After", String(err.retryAfterSeconds));
+    }
     return res.status(err.statusCode).json({ message: err.message });
   }
 

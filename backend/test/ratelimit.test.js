@@ -26,3 +26,39 @@ test("resend: ek email par 60s mein ek hi request; har email par, account ho ya 
   assert.equal((await resend("nobody@example.com")).status, 200);
   assert.equal((await resend("nobody@example.com")).status, 429);
 });
+
+test("register: ek IP se ghante mein 10 — 11th par 429", async () => {
+  // pehle test ne 1 register kiya — ab tak ki ginti ke saath 11th tak
+  const statuses = [];
+  for (let i = 0; i < 10; i++) {
+    statuses.push((await ctx.post("/auth/register", { email: `bulk${i}@example.com`, password: "Valid1234" })).status);
+  }
+  assert.deepEqual(statuses.slice(0, 9), Array(9).fill(201));
+  const last = statuses.at(-1);
+  assert.equal(last, 429);
+});
+
+test("login: account lockout (5) IP limit (50) se pehle — ek account ki galtiyan network band nahi karti", async () => {
+  // users seedha DB mein — register ki IP had (10) is file ka pichla test pehle hi poori kar chuka hai
+  const passwordHash = await require("bcryptjs").hash("Valid1234", 12);
+  await ctx.mongoose.model("User").create([
+    { email: "ip-a@example.com", password: passwordHash, isVerified: true },
+    { email: "ip-b@example.com", password: passwordHash, isVerified: true }
+  ]);
+  const login = (email, password) => ctx.post("/auth/login", { email, password });
+
+  // ek account par 5 galat → account lock (423), IP limit nahi (429)
+  const statuses = [];
+  for (let i = 0; i < 5; i++) statuses.push((await login("ip-a@example.com", "Wrong1234")).status);
+  assert.deepEqual(statuses, [401, 401, 401, 401, 423]);
+
+  // usi IP se doosra account — pehli galti par 401 (pehle 10 ki IP had par yahan 429 aata), sahi par 200
+  assert.equal((await login("ip-b@example.com", "Wrong1234")).status, 401);
+  assert.equal((await login("ip-b@example.com", "Valid1234")).status, 200);
+
+  // IP had (50 galat) — phir har email par 429, message mein "from this network" aur asal minute
+  let last;
+  for (let i = 0; i < 50; i++) last = await login(`spray${i}@example.com`, "Wrong1234");
+  assert.equal(last.status, 429);
+  assert.match(last.json.message, /^Too many failed login attempts from this network\. Please try again in \d+ minutes?\.$/);
+});

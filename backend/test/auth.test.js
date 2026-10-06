@@ -119,6 +119,46 @@ test("5 galat koshishon ke baad code band; resend ke baad purana code band", asy
   assert.equal((await post("/auth/verify-email", { email: "attempts@example.com", otp: fresh, password: PASSWORD })).status, 200);
 });
 
+test("OTP timing: active code na ho tab bhi bcrypt.compare chalta hai (dummy) — har fail raasta ek hi compare", async () => {
+  // waqt naapna flaky hota hai — is liye ginte hain ke har fail raaste par bilkul ek bcrypt.compare hua
+  const bcrypt = require("bcryptjs");
+  const realCompare = bcrypt.compare;
+  let compares = 0;
+  bcrypt.compare = (...args) => {
+    compares++;
+    return realCompare(...args);
+  };
+  const comparesFor = async (body) => {
+    compares = 0;
+    const res = await post("/auth/verify-email", { password: PASSWORD, ...body });
+    assert.equal(res.status, 400);
+    assert.equal(res.json.message, "Invalid or expired code");
+    return compares;
+  };
+
+  try {
+    await post("/auth/register", { email: "timing@example.com", password: PASSWORD });
+    const otp = codesFor("timing@example.com")[0];
+    const { _id: user } = await mongoose.model("User").findOne({ email: "timing@example.com" });
+
+    // active code + galat code → asli compare
+    assert.equal(await comparesFor({ email: "timing@example.com", otp: wrongCode(otp) }), 1);
+
+    // code expire → active code nahi → dummy compare (pehle yahan 0 tha)
+    await mongoose.model("Otp").updateOne({ user }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
+    assert.equal(await comparesFor({ email: "timing@example.com", otp }), 1);
+
+    // 5 koshishen poori → code band → dummy compare
+    await mongoose.model("Otp").updateOne({ user }, { $set: { expiresAt: new Date(Date.now() + 60000), attempts: 5 } });
+    assert.equal(await comparesFor({ email: "timing@example.com", otp }), 1);
+
+    // na-maujood email (pehle se dummy) — wahi ek compare
+    assert.equal(await comparesFor({ email: "nobody-timing@example.com", otp }), 1);
+  } finally {
+    bcrypt.compare = realCompare;
+  }
+});
+
 test("login: unknown aur galat password ka ek hi 401; unverified + sahi password → 403", async () => {
   await registerAndVerify("known@example.com");
   const unknown = await post("/auth/login", { email: "nobody@example.com", password: PASSWORD });
