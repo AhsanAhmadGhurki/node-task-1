@@ -21,12 +21,34 @@ let userId;
 const userFiles = () => fs.readdirSync(config.avatarUploadDir).filter((name) => name.startsWith(`${userId}-`));
 const dbAvatar = async () => (await mongoose.model("User").findById(userId).lean()).avatar;
 
+// har image type ke asli shuru ke bytes (magic bytes) — server file-type se inhi ko pehchanta hai
+// PNG mein IHDR ke baad IDAT ka header bhi, taake file-type foran "png" bata de (APNG ki talaash mein poori file na padhe)
+const SIGNATURES = {
+  "image/jpeg": Buffer.from("ffd8ffe000104a46494600", "hex"),
+  "image/png": Buffer.concat([
+    Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"),
+    Buffer.alloc(13 + 4),
+    Buffer.from("0000000049444154", "hex")
+  ]),
+  "image/webp": Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 ")])
+};
+
+// file ke bytes — content diya ho to wahi, warna declared type ka signature, phir 0x01 se `bytes` tak bharo
+// (size wahi rehta hai, is liye 2 MB wale tests ki had nahi badalti); signature na ho (html/pdf) to sirf 0x01
+function fileBytes(type, bytes, content) {
+  if (content) {
+    return content;
+  }
+  const signature = SIGNATURES[type] || Buffer.alloc(0);
+  return Buffer.concat([signature, Buffer.alloc(bytes - signature.length, 1)]);
+}
+
 // multipart request — ctx.request sirf JSON bhejta hai
-// parts: [{ field, type, name, bytes }] — khaali array = form mein koi file nahi
+// parts: [{ field, type, name, bytes, content }] — khaali array = form mein koi file nahi
 async function upload(parts, { auth = true } = {}) {
   const form = new FormData();
-  for (const { field = "avatar", type = "image/png", name = "me.png", bytes = 1024 } of parts) {
-    form.append(field, new Blob([Buffer.alloc(bytes, 1)], { type }), name);
+  for (const { field = "avatar", type = "image/png", name = "me.png", bytes = 1024, content } of parts) {
+    form.append(field, new Blob([fileBytes(type, bytes, content)], { type }), name);
   }
   if (parts.length === 0) {
     form.append("note", "no file here");
@@ -79,11 +101,46 @@ for (const [type, name, ext] of [
   });
 }
 
-test("declared type se extension — 'evil.html' ko image/png bata kar bheja → .png banti hai, .html nahi", async () => {
-  const res = await upload([{ type: "image/png", name: "evil.html" }]);
-  assert.equal(res.status, 200);
-  assert.match(res.json.avatar, /\.png$/);
-  assert.ok(userFiles().every((name) => !name.endsWith(".html")));
+test("'evil.html' (asli HTML) ko image/png bata kar bheja → 415, disk aur DB mein kuch nahi", async () => {
+  const content = Buffer.from("<html><script>alert(1)</script></html>");
+  const res = await upload([{ type: "image/png", name: "evil.html", content }]);
+  assert.equal(res.status, 415);
+  assert.equal(res.json.message, "Avatar must be a valid JPEG, PNG or WebP image.");
+  assert.deepEqual(userFiles(), [], "Multer ki likhi file mita di gayi");
+  assert.equal(await dbAvatar(), null);
+});
+
+// declared type sahi, lekin bytes kisi image ke nahi (sirf 0x01) — Content-Type par bharosa nahi
+for (const type of Object.keys(SIGNATURES)) {
+  test(`${type} bata kar nakli bytes → 415, disk aur DB mein kuch nahi`, async () => {
+    const res = await upload([{ type, content: Buffer.alloc(1024, 1) }]);
+    assert.equal(res.status, 415);
+    assert.equal(res.json.message, "Avatar must be a valid JPEG, PNG or WebP image.");
+    assert.deepEqual(userFiles(), []);
+    assert.equal(await dbAvatar(), null);
+  });
+}
+
+// asli WebP bytes, lekin image/png bata kar — allowed type hai, phir bhi declared se alag → 415
+// (warna WebP ".png" naam se save hoti, kyunki extension declared type se banta hai)
+test("asli WebP ko image/png bata kar bheja → 415 (mime mismatch), disk aur DB mein kuch nahi", async () => {
+  const content = fileBytes("image/webp", 1024);
+  const res = await upload([{ type: "image/png", name: "me.png", content }]);
+  assert.equal(res.status, 415);
+  assert.equal(res.json.message, "Avatar must be a valid JPEG, PNG or WebP image.");
+  assert.deepEqual(userFiles(), []);
+  assert.equal(await dbAvatar(), null);
+});
+
+test("pehle se avatar ho aur nakli file aaye → 415; purana avatar DB aur disk dono mein salamat", async () => {
+  const first = await upload([{ type: "image/jpeg", name: "first.jpg" }]);
+  assert.equal(first.status, 200);
+  const firstFile = path.basename(first.json.avatar);
+
+  const res = await upload([{ type: "image/png", content: Buffer.alloc(1024, 1) }]);
+  assert.equal(res.status, 415);
+  assert.equal(await dbAvatar(), first.json.avatar, "DB purane par hi");
+  assert.deepEqual(userFiles(), [firstFile], "sirf purani file — nakli wali mit gayi, purani nahi mitti");
 });
 
 test("pehla avatar badla → DB naye par, purani file disk se mit gayi, nayi maujood", async () => {

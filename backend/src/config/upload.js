@@ -12,7 +12,7 @@ fs.mkdirSync(uploadDir, { recursive: true });
 
 // sirf ye tasveerein — aur extension inhi se, user ke file naam se nahi
 // (warna "evil.html" → ".html" file banti, jo serve hone par browser HTML ki tarah chalata — XSS)
-// note: mimetype client ka bataya hua Content-Type hai, file ke andar ke bytes check nahi hote
+// mimetype client ka bataya hua Content-Type hai; actual file signature service mein verify hoti hai
 const allowedTypes = {
   "image/jpeg": ".jpg",
   "image/png": ".png",

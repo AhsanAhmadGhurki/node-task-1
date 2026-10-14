@@ -1,12 +1,32 @@
 // user profile ka DB kaam — abhi sirf avatar
 const fs = require("fs/promises");
 const path = require("path");
+const { fromFile } = require("file-type");
 const User = require("../models/User");
 const config = require("../config");
 const NotFoundError = require("../utils/NotFoundError");
+const UnsupportedMediaTypeError = require("../utils/UnsupportedMediaTypeError");
 
 // DB mein yahi path jaata hai — frontend isi se picture maangega (jab /uploads serve hoga)
 const AVATAR_URL_PREFIX = "/uploads/avatars/";
+
+// file-type v16 ke ext naam — JPEG ka "jpg" aata hai, "jpeg" nahi
+const ALLOWED_AVATAR_TYPES = new Set(["jpg", "png", "webp"]);
+
+// declared Content-Type par bharosa nahi — file ke shuru ke bytes (magic bytes) dekh kar asli type pehchano
+// pehchaan na ho (text/HTML), image allowed na ho, ya declared type se alag ho to 415
+// declared se milana zaroori — Multer ne extension declared type se rakha hai, to WebP ".png" naam se na bache
+async function validateAvatarFile(filePath, declaredMime) {
+  const fileType = await fromFile(filePath);
+
+  if (
+    !fileType ||
+    !ALLOWED_AVATAR_TYPES.has(fileType.ext) ||
+    fileType.mime !== declaredMime
+  ) {
+    throw new UnsupportedMediaTypeError();
+  }
+}
 
 // avatar ki file mitao — sirf naam (basename) lo aur hamesha avatars folder ke andar dhoondo,
 // taake DB ki koi galat value ("../../.env" jaisi) folder ke bahar ki file na mita sake
@@ -17,7 +37,18 @@ async function removeAvatarFile(avatar) {
 
 // naya avatar lagao, purani file mitao — naya path lautata hai
 // filename — Multer ki di hui (upload.js: <userId>-<time><ext>), file disk par aa chuki hai
-async function setAvatar(userId, filename) {
+// mimetype — client ka declared type (extension isi se bani), asli bytes se milana hai
+async function setAvatar(userId, filename, mimetype) {
+  // DB chhoone se pehle asli bytes check karo — galat file disk par na rahe, na DB mein jaye
+  const filePath = path.join(config.avatarUploadDir, filename);
+
+  try {
+    await validateAvatarFile(filePath, mimetype);
+  } catch (err) {
+    await removeAvatarFile(filename);
+    throw err;
+  }
+
   const avatar = AVATAR_URL_PREFIX + filename;
 
   // ek hi query mein naya path likho aur purana wala lo — read (findById) → save() mein do uploads ek saath
