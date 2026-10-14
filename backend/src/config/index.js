@@ -18,6 +18,10 @@ module.exports = {
   otpTtlMs: 5 * 60 * 1000,
   // avatars ka folder (backend/uploads/avatars) — upload.js yahan save karta hai, userService yahin se mitata hai
   avatarUploadDir: path.join(__dirname, "../../uploads/avatars"),
+  // ticket attachments pehle yahan aati hain (Multer) — check se pehle; ye folder kabhi serve nahi hota
+  ticketUploadTmpDir: path.join(__dirname, "../../uploads/tmp/tickets"),
+  // saari files pass hon to yahan move — rename atomic rahe, is liye dono ek hi uploads/ ke andar
+  ticketAttachmentDir: path.join(__dirname, "../../uploads/tickets"),
   // email bhejne ki settings — default Gmail; user/pass na hon to email nahi jaati, sirf console
   smtp: {
     host: process.env.SMTP_HOST || "smtp.gmail.com",

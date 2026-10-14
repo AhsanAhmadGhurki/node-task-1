@@ -6,7 +6,7 @@ const { test, before, after, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { setupTestApp } = require("./helpers");
+const { setupTestApp, fileBytes } = require("./helpers");
 
 const ctx = setupTestApp("avatar");
 const { mongoose, config } = ctx;
@@ -20,28 +20,6 @@ let userId;
 // is test user ki files jo abhi disk par hain
 const userFiles = () => fs.readdirSync(config.avatarUploadDir).filter((name) => name.startsWith(`${userId}-`));
 const dbAvatar = async () => (await mongoose.model("User").findById(userId).lean()).avatar;
-
-// har image type ke asli shuru ke bytes (magic bytes) — server file-type se inhi ko pehchanta hai
-// PNG mein IHDR ke baad IDAT ka header bhi, taake file-type foran "png" bata de (APNG ki talaash mein poori file na padhe)
-const SIGNATURES = {
-  "image/jpeg": Buffer.from("ffd8ffe000104a46494600", "hex"),
-  "image/png": Buffer.concat([
-    Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"),
-    Buffer.alloc(13 + 4),
-    Buffer.from("0000000049444154", "hex")
-  ]),
-  "image/webp": Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 ")])
-};
-
-// file ke bytes — content diya ho to wahi, warna declared type ka signature, phir 0x01 se `bytes` tak bharo
-// (size wahi rehta hai, is liye 2 MB wale tests ki had nahi badalti); signature na ho (html/pdf) to sirf 0x01
-function fileBytes(type, bytes, content) {
-  if (content) {
-    return content;
-  }
-  const signature = SIGNATURES[type] || Buffer.alloc(0);
-  return Buffer.concat([signature, Buffer.alloc(bytes - signature.length, 1)]);
-}
 
 // multipart request — ctx.request sirf JSON bhejta hai
 // parts: [{ field, type, name, bytes, content }] — khaali array = form mein koi file nahi
@@ -111,7 +89,7 @@ test("'evil.html' (asli HTML) ko image/png bata kar bheja → 415, disk aur DB m
 });
 
 // declared type sahi, lekin bytes kisi image ke nahi (sirf 0x01) — Content-Type par bharosa nahi
-for (const type of Object.keys(SIGNATURES)) {
+for (const type of ["image/jpeg", "image/png", "image/webp"]) {
   test(`${type} bata kar nakli bytes → 415, disk aur DB mein kuch nahi`, async () => {
     const res = await upload([{ type, content: Buffer.alloc(1024, 1) }]);
     assert.equal(res.status, 415);

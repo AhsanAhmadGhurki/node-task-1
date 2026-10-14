@@ -5,6 +5,29 @@
 const path = require("node:path");
 const assert = require("node:assert/strict");
 
+// upload tests ke liye har type ke asli shuru ke bytes (magic bytes) — server file-type se inhi ko pehchanta hai
+// PNG mein IHDR ke baad IDAT ka header bhi, taake file-type foran "png" bata de (APNG ki talaash mein poori file na padhe)
+const SIGNATURES = {
+  "image/jpeg": Buffer.from("ffd8ffe000104a46494600", "hex"),
+  "image/png": Buffer.concat([
+    Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"),
+    Buffer.alloc(13 + 4),
+    Buffer.from("0000000049444154", "hex")
+  ]),
+  "image/webp": Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 ")]),
+  "application/pdf": Buffer.from("%PDF-1.4\n")
+};
+
+// file ke bytes — content diya ho to wahi, warna declared type ka signature, phir 0x01 se `bytes` tak bharo
+// (size wahi rehta hai, is liye 2 MB wale tests ki had nahi badalti); signature na ho (html, svg) to sirf 0x01
+function fileBytes(type, bytes, content) {
+  if (content) {
+    return content;
+  }
+  const signature = SIGNATURES[type] || Buffer.alloc(0);
+  return Buffer.concat([signature, Buffer.alloc(bytes - signature.length, 1)]);
+}
+
 function setupTestApp(name, { realLimiters = false } = {}) {
   // config require hone se PEHLE test DB — warna asli DB par users bante/mitte
   const mongoUrl = new URL(process.env.MONGO_URI);
@@ -73,7 +96,7 @@ function setupTestApp(name, { realLimiters = false } = {}) {
     assert.match(testDb, /_test$/);
     await mongoose.connect(config.mongoUri);
     await mongoose.connection.db.dropDatabase();
-    await Promise.all(["User", "Otp", "RefreshToken", "Task"].map((model) => mongoose.model(model).init()));
+    await Promise.all(["User", "Otp", "RefreshToken", "Task", "Ticket"].map((model) => mongoose.model(model).init()));
     ctx.server = app.listen(0);
     await new Promise((resolve) => ctx.server.once("listening", resolve));
     ctx.baseUrl = `http://127.0.0.1:${ctx.server.address().port}`;
@@ -95,4 +118,4 @@ function setupTestApp(name, { realLimiters = false } = {}) {
   return ctx;
 }
 
-module.exports = { setupTestApp };
+module.exports = { setupTestApp, SIGNATURES, fileBytes };
