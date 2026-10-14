@@ -2,7 +2,8 @@
 // code sahi ho to backend usi waqt login bhi kar deta hai — onVerified({ token, user }) se parent session banata hai
 import { useEffect, useState } from 'react'
 import { resendVerification, verifyEmail } from '../api/authApi'
-import { button, field, form, input, label, muted } from '../ui/styles'
+import { MailIcon } from '../ui/icons'
+import { button, cn, field, form, inputBase, label } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 
 // onResult — parent apne Alert mein backend ka jawab dikhata hai
@@ -60,25 +61,34 @@ export default function VerifyEmail({ email, password, onResult, onVerified, sen
 
   return (
     <form className={form} onSubmit={handleVerify}>
-      {codeRequested ? (
-        <p className={muted}>
-          <strong>{email}</strong> par 6-digit code bheja gaya hai (Spam bhi dekhein). 5 minute tak chalega.
-        </p>
-      ) : (
-        <p className={muted}>
-          Email abhi verify nahi hua. &quot;Naya code bhejo&quot; dabayen, phir <strong>{email}</strong> par aaya 6-digit code yahan
-          daalein.
-        </p>
-      )}
+      {/* kis email par code gaya — icon ke saath, taake galat email foran nazar aaye */}
+      <div className="flex items-start gap-3 rounded-xl bg-subtle p-3.5 text-sm text-muted">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-text">
+          <MailIcon />
+        </span>
+        {codeRequested ? (
+          <p className="m-0">
+            <strong className="font-medium text-text wrap-anywhere">{email}</strong> par 6-digit code bheja gaya hai (Spam bhi
+            dekhein). 5 minute tak chalega.
+          </p>
+        ) : (
+          <p className="m-0">
+            Email abhi verify nahi hua. &quot;Naya code bhejo&quot; dabayen, phir{' '}
+            <strong className="font-medium text-text wrap-anywhere">{email}</strong> par aaya 6-digit code yahan daalein.
+          </p>
+        )}
+      </div>
       <div className={field}>
         <label htmlFor="verify-otp" className={label}>
           Verification code
         </label>
         <input
           id="verify-otp"
-          className={input}
+          // bade, door door digits — code padh kar likhna aasan
+          className={cn(inputBase, 'px-3.5 py-3 text-center font-mono text-2xl tracking-[0.5em]')}
           type="text"
           name="otp"
+          placeholder="••••••"
           value={otp}
           // sirf digits, zyada se zyada 6 — paste mein spaces aa jayein to bhi
           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -90,10 +100,15 @@ export default function VerifyEmail({ email, password, onResult, onVerified, sen
           autoFocus
         />
       </div>
-      <button type="submit" className={button()} disabled={busy || otp.length !== 6}>
+      <button type="submit" className={cn(button({ size: 'lg' }), 'w-full')} disabled={busy || otp.length !== 6}>
         {busy ? 'Please wait…' : 'Verify & login'}
       </button>
-      <button type="button" className={button({ variant: 'secondary' })} onClick={handleResend} disabled={busy || cooldown > 0}>
+      <button
+        type="button"
+        className={cn(button({ variant: 'secondary', weight: 'medium' }), 'w-full')}
+        onClick={handleResend}
+        disabled={busy || cooldown > 0}
+      >
         {cooldown > 0 ? `Naya code bhejo (${cooldown}s)` : 'Naya code bhejo'}
       </button>
     </form>

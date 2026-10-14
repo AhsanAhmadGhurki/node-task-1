@@ -12,8 +12,8 @@ export default function App() {
   return (
     <>
       <Navbar />
-      {/* 57px = navbar ki unchai — card upar se thoda neeche, beech mein */}
-      <main className="flex min-h-[calc(100vh-57px)] items-start justify-center px-4 py-10">
+      {/* har page apni chaudai khud rakhta hai (auth: split card, dashboard: patli, tickets: chaudi) */}
+      <main className="px-4 pt-8 pb-16 sm:px-6 sm:pt-12">
         <Routes>
           {/* "/" par seedha dashboard — login na ho to ProtectedRoute /login bhej dega */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

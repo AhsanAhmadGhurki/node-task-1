@@ -1,11 +1,13 @@
 // /tickets — support ticket bhejo (0–3 attachments) aur apne purane tickets dekho / attachments download karo
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createTicket, downloadAttachment, getTickets } from '../api/ticketApi'
-import Alert from '../components/Alert'
+import EmptyState from '../components/EmptyState'
 import Loader from '../components/Loader'
 import TicketForm from '../components/TicketForm'
 import TicketItem from '../components/TicketItem'
-import { card, cn, muted, title, titleText } from '../ui/styles'
+import Toast from '../components/Toast'
+import { InboxIcon } from '../ui/icons'
+import { badge, card, cn, pageTitle, panel, subtitle, titleText } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 
 // kamyabi ka paigham itni der baad khud hat jaata hai — error rehta hai jab tak agla action na ho
@@ -16,6 +18,8 @@ export default function Tickets() {
   const [tickets, setTickets] = useState(null)
   const [alert, setAlert] = useState(null)
   const [busy, setBusy] = useState(false)
+  // upload kitna gaya (0–100) — sirf ticket bhejte waqt, warna null
+  const [progress, setProgress] = useState(null)
   // Dashboard jaisa — ref foran badalta hai, ek tick mein do submit ho to bhi do tickets na banein
   const inFlight = useRef(false)
 
@@ -55,7 +59,9 @@ export default function Tickets() {
   }, [])
 
   async function handleCreate(fields) {
-    const ticket = await run(() => createTicket(fields))
+    setProgress(0)
+    const ticket = await run(() => createTicket(fields, setProgress))
+    setProgress(null)
     if (!ticket) return false
     // naya sabse upar — backend bhi naye pehle deta hai
     setTickets((current) => [ticket, ...(current || [])])
@@ -69,27 +75,44 @@ export default function Tickets() {
   }
 
   return (
-    <div className="flex w-full flex-col items-center gap-5">
-      <section className={card}>
-        <h1 className={title}>Support ticket</h1>
-        <Alert alert={alert} />
-        <TicketForm onCreate={handleCreate} disabled={busy} />
-      </section>
+    <div className="mx-auto w-full max-w-5xl">
+      <h1 className={pageTitle}>Support</h1>
+      <p className={subtitle}>Masla batayein — screenshot ya PDF ke saath. Har ticket aur us ki files sirf aap dekh sakte hain.</p>
 
-      <section className={card}>
-        <h2 className={titleText}>Mere tickets</h2>
-        {tickets === null ? (
-          <Loader text="Tickets load ho rahe hain…" />
-        ) : tickets.length === 0 ? (
-          <p className={cn(muted, 'mt-[18px]')}>Abhi koi ticket nahi — upar se bhejein.</p>
-        ) : (
-          <ul className="mt-[18px] border-t border-border">
-            {tickets.map((ticket) => (
-              <TicketItem key={ticket._id} ticket={ticket} onDownload={handleDownload} disabled={busy} />
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* bade screen par do column — baayen form (scroll par saath rehta hai), daayen tickets */}
+      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <section className={cn(card, 'lg:sticky lg:top-24')}>
+          <h2 className={titleText}>Naya ticket</h2>
+          <p className={subtitle}>Hum jaldi jawab denge.</p>
+          <div className="mt-6">
+            <TicketForm onCreate={handleCreate} disabled={busy} progress={progress} />
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center gap-2">
+            <h2 className={titleText}>Mere tickets</h2>
+            {tickets?.length > 0 && <span className={badge}>{tickets.length}</span>}
+          </div>
+          {tickets === null ? (
+            <div className={cn(panel, 'mt-4 p-5')}>
+              <Loader text="Tickets load ho rahe hain…" />
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className={cn(panel, 'mt-4')}>
+              <EmptyState icon={InboxIcon} title="Abhi koi ticket nahi" text="Form bhar kar apna pehla ticket bhejein." />
+            </div>
+          ) : (
+            <ul className="mt-4 flex flex-col gap-3">
+              {tickets.map((ticket) => (
+                <TicketItem key={ticket._id} ticket={ticket} onDownload={handleDownload} disabled={busy} />
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <Toast alert={alert} onClose={() => setAlert(null)} />
     </div>
   )
 }

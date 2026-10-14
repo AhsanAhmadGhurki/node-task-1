@@ -56,7 +56,7 @@ export default function AvatarButton() {
       <button
         type="button"
         className={cn(
-          'flex size-8 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-border bg-primary p-0 text-sm font-semibold text-white disabled:cursor-default',
+          'flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-primary p-0 text-sm font-semibold text-white ring-2 ring-card outline-offset-2 transition hover:ring-primary/40 focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-default',
           uploading && 'opacity-60',
         )}
         onClick={() => inputRef.current.click()}
@@ -83,7 +83,7 @@ export default function AvatarButton() {
       {error && (
         <p
           role="alert"
-          className="absolute top-full right-0 z-10 mt-2 w-max max-w-65 rounded-lg bg-error-bg px-3 py-2 text-xs text-error-text shadow-lg"
+          className="absolute top-full right-0 z-40 mt-2 w-max max-w-65 rounded-xl border border-error-text/20 bg-error-bg px-3 py-2 text-xs text-error-text shadow-lg"
         >
           {error}
         </p>
