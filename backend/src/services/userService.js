@@ -1,31 +1,29 @@
 // user profile ka DB kaam — abhi sirf avatar
 const fs = require("fs/promises");
 const path = require("path");
-const { fromFile } = require("file-type");
+const { assertFileSignature } = require("../utils/fileSignature");
 const User = require("../models/User");
 const config = require("../config");
 const NotFoundError = require("../utils/NotFoundError");
-const UnsupportedMediaTypeError = require("../utils/UnsupportedMediaTypeError");
 
 // DB mein yahi path jaata hai — frontend isi se picture maangega (jab /uploads serve hoga)
 const AVATAR_URL_PREFIX = "/uploads/avatars/";
 
-// file-type v16 ke ext naam — JPEG ka "jpg" aata hai, "jpeg" nahi
-const ALLOWED_AVATAR_TYPES = new Set(["jpg", "png", "webp"]);
+// avatar sirf ye tasveerein — upload.js ke allowedTypes jaisi hi list
+const ALLOWED_AVATAR_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+];
 
-// declared Content-Type par bharosa nahi — file ke shuru ke bytes (magic bytes) dekh kar asli type pehchano
-// pehchaan na ho (text/HTML), image allowed na ho, ya declared type se alag ho to 415
-// declared se milana zaroori — Multer ne extension declared type se rakha hai, to WebP ".png" naam se na bache
+// asli bytes ka check shared utility mein (tickets bhi wahi use karte hain) — yahan sirf avatar ki list aur message
 async function validateAvatarFile(filePath, declaredMime) {
-  const fileType = await fromFile(filePath);
-
-  if (
-    !fileType ||
-    !ALLOWED_AVATAR_TYPES.has(fileType.ext) ||
-    fileType.mime !== declaredMime
-  ) {
-    throw new UnsupportedMediaTypeError();
-  }
+  await assertFileSignature(
+    filePath,
+    declaredMime,
+    ALLOWED_AVATAR_MIMES,
+    "Avatar must be a valid JPEG, PNG or WebP image."
+  );
 }
 
 // avatar ki file mitao — sirf naam (basename) lo aur hamesha avatars folder ke andar dhoondo,

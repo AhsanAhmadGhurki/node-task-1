@@ -11,6 +11,7 @@ const taskRoutes = require("./routes/taskRoutes");
 const authRoutes = require("./routes/authRoutes");
 const config = require("./config");
 const userRoutes = require("./routes/userRoutes");
+const ticketRoutes = require("./routes/ticketRoutes");
 
 const app = express();
 
@@ -46,6 +47,10 @@ app.use(authRoutes);
 // /user/* — logged-in user ke apne kaam (abhi: avatar upload)
 // authMiddleware Multer se PEHLE — upload.js file ka naam req.user.id se banata hai
 app.use("/user", authMiddleware, userRoutes);
+
+// /tickets/* — support tickets aur unke attachments; authMiddleware Multer se PEHLE (ticketUpload.js bhi req.user.id se naam banata hai)
+// attachments static serve nahi hote — download sirf token + ownership ke saath (GET /tickets/:id/attachments/:attachmentId)
+app.use("/tickets", authMiddleware, ticketRoutes);
 
 // koi route match nahi hua
 app.use(notFoundMiddleware);

@@ -1,4 +1,5 @@
 // request validation — controller tak pahunchne se pehle body check karo
+const BadRequestError = require("../utils/BadRequestError");
 
 // simple email shakal: kuch@kuch.kuch — spaces nahi, ek @, aur @ ke baad domain mein dot
 // poori RFC wali validation nahi — asal saboot verification email hi hai
@@ -234,7 +235,33 @@ function validateEmail(req, res, next) {
   next();
 }
 
+// ticket ki description ki had — Ticket model ka maxlength bhi yahi; trim ke baad gina jaata hai
+const MAX_DESCRIPTION_LENGTH = 5000;
+
+// POST /tickets — multipart, is liye Multer ke BAAD chalta hai (req.body usi ke baad bharta hai)
+// res.status(400) nahi, next(error) — taake route ka discardTicketUploads chale aur Multer ki temp files mit jaayein
+function validateCreateTicket(req, res, next) {
+  const { title, description } = req.body || {};
+
+  const invalidTitle = titleError(title);
+  if (invalidTitle) {
+    return next(new BadRequestError(invalidTitle));
+  }
+
+  const descriptionFieldError = stringFieldError(description, "Description", { trim: true });
+  if (descriptionFieldError) {
+    return next(new BadRequestError(descriptionFieldError));
+  }
+
+  if (description.trim().length > MAX_DESCRIPTION_LENGTH) {
+    return next(new BadRequestError(`Description must be at most ${MAX_DESCRIPTION_LENGTH} characters`));
+  }
+
+  next();
+}
+
 module.exports = {
+  validateCreateTicket,
   validateCreateTask,
   validateUpdateTask,
   validateAuth,

@@ -69,3 +69,28 @@ export function avatarFileError(file) {
   if (file.size > MAX_AVATAR_BYTES) return 'Avatar file is too large. Maximum size is 2 MB.'
   return null
 }
+
+// ticket attachments — backend (config/ticketUpload.js + ticketService) jaise hi rules aur messages
+// galat selection par request hi na jaye; asal faisla (magic bytes samet) phir bhi backend karta hai
+export const ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+export const MAX_ATTACHMENTS = 3
+export const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
+export const MAX_TOTAL_ATTACHMENT_BYTES = 5 * 1024 * 1024
+// ticket description ki had — backend validateCreateTicket jaisi (trim ke baad 5000)
+export const MAX_DESCRIPTION_LENGTH = 5000
+
+export function attachmentFilesError(files) {
+  if (files.length > MAX_ATTACHMENTS) return `You can attach at most ${MAX_ATTACHMENTS} files.`
+  if (files.some((file) => !ATTACHMENT_TYPES.includes(file.type))) return 'Attachments must be JPEG, PNG, WebP or PDF files.'
+  if (files.some((file) => file.size > MAX_ATTACHMENT_BYTES)) return 'Each attachment must be at most 2 MB.'
+  const total = files.reduce((sum, file) => sum + file.size, 0)
+  if (total > MAX_TOTAL_ATTACHMENT_BYTES) return 'All attachments combined must be at most 5 MB.'
+  return null
+}
+
+// 1536 → "1.5 KB" — file ki size dikhane ke liye
+export function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
