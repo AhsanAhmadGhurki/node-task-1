@@ -154,29 +154,6 @@ function validateUpdateTask(req, res, next) {
   next();
 }
 
-// POST /auth/login — email aur password dono zaroori hain (format/rules nahi — galat email par 401 hi aata hai)
-function validateAuth(req, res, next) {
-  const { email, password } = req.body || {};
-
-  const emailFieldError = stringFieldError(email, "Email", { trim: true });
-  if (emailFieldError) {
-    return res.status(400).json({ message: emailFieldError });
-  }
-
-  // password trim nahi karte — spaces bhi password ka hissa ho sakte hain
-  const passwordFieldError = stringFieldError(password, "Password", { trim: false });
-  if (passwordFieldError) {
-    return res.status(400).json({ message: passwordFieldError });
-  }
-
-  // 72 bytes se lamba password kabhi set hi nahi ho sakta — bcrypt tak bhejne ki zaroorat nahi
-  if (passwordTooLong(password)) {
-    return res.status(400).json({ message: `Password must be at most ${MAX_PASSWORD_BYTES} bytes` });
-  }
-
-  next();
-}
-
 // POST /verify-email — email + bilkul 6 digit ka code (string; 123456 number nahi, "12 34 56" nahi)
 // + password (register wale rules) — verify ke waqt yahi account par lagta hai
 function validateOtpVerify(req, res, next) {
@@ -194,25 +171,6 @@ function validateOtpVerify(req, res, next) {
 
   if (!/^\d{6}$/.test(otp)) {
     return res.status(400).json({ message: "Code must be 6 digits" });
-  }
-
-  const invalidPassword = newPasswordError(password);
-  if (invalidPassword) {
-    return res.status(400).json({ message: invalidPassword });
-  }
-
-  next();
-}
-
-// POST /register — email ki shakal + password ke rules
-// login par ye rules nahi lagte — warna purane passwords wale users login na kar sakein
-function validateRegister(req, res, next) {
-  const { email, password } = req.body || {};
-
-  // galat email par user banta hi nahi — 400 aur yahin ruk jao
-  const invalidEmail = emailError(email);
-  if (invalidEmail) {
-    return res.status(400).json({ message: invalidEmail });
   }
 
   const invalidPassword = newPasswordError(password);
@@ -264,8 +222,6 @@ module.exports = {
   validateCreateTicket,
   validateCreateTask,
   validateUpdateTask,
-  validateAuth,
   validateOtpVerify,
-  validateRegister,
   validateEmail
 };

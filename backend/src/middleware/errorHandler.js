@@ -54,6 +54,10 @@ function errorHandler(err, req, res, next) {
     if (err.retryAfterSeconds) {
       res.set("Retry-After", String(err.retryAfterSeconds));
     }
+    // validation (middleware/validate.js) ki saari galtiyan ek saath — message pehli galti, purane clients ke liye
+    if (err.errors) {
+      return res.status(err.statusCode).json({ message: err.message, errors: err.errors });
+    }
     return res.status(err.statusCode).json({ message: err.message });
   }
 

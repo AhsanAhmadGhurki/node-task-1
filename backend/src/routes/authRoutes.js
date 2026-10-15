@@ -1,6 +1,8 @@
 const express = require("express");
 const authController = require("../controllers/authController");
-const { validateAuth, validateEmail, validateOtpVerify, validateRegister } = require("../middleware/validation");
+const { validateEmail, validateOtpVerify } = require("../middleware/validation");
+const { registerRules, loginRules } = require("../validators/authValidators");
+const { handleValidation } = require("../middleware/validate");
 const { registerLimiter, loginLimiter, resendLimiter, resendEmailCooldown, otpVerifyLimiter } = require("../middleware/rateLimit");
 
 // app.js mein root ("/") par lagaya gaya hai — isliye yahan poore paths likhe hain
@@ -10,7 +12,7 @@ const router = express.Router();
 
 // register par password ke rules (8+ characters, ek number, 72 bytes tak) — login par nahi
 // register asal email bhejta hai — ek IP se ghante mein had se zyada nahi
-router.post(["/auth/register", "/register"], registerLimiter, validateRegister, authController.register);
+router.post(["/auth/register", "/register"], registerLimiter, registerRules, handleValidation, authController.register);
 
 // code guess karna — har code par 5 koshishen DB mein, aur ye IP limit alag
 router.post(["/auth/verify-email", "/verify-email"], otpVerifyLimiter, validateOtpVerify, authController.verifyEmail);
@@ -26,7 +28,7 @@ router.post(
 );
 
 // login par limit — validation se pehle, taake khaali/ghalat body wali koshishen bhi ginein
-router.post("/auth/login", loginLimiter, validateAuth, authController.login);
+router.post("/auth/login", loginLimiter, loginRules, handleValidation, authController.login);
 
 // body nahi chahiye — refresh token httpOnly cookie se aata hai
 router.post("/auth/refresh", authController.refresh);
