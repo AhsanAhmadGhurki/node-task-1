@@ -28,6 +28,22 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    // profile (PATCH /user/profile) — validators/userValidators.js bhi yahi rules lagata hai
+    // null = abhi set nahi kiya
+    name: {
+      type: String,
+      trim: true,
+      minlength: 2,
+      maxlength: 50,
+      default: null
+    },
+    // Pakistani mobile — 03XXXXXXXXX (bilkul 11 digits)
+    phone: {
+      type: String,
+      trim: true,
+      match: /^03\d{9}$/,
+      default: null
+    },
     // lagataar galat password — 5 par account 15 minute band (authService.checkCredentials)
     // DB mein — server restart se lock nahi tootta; sahi password par 0
     failedLoginAttempts: {

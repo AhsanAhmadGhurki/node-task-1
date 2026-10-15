@@ -1,7 +1,7 @@
-// upar ki patti — app ka naam, aur login ho to Tasks/Tickets links, avatar (click = badlo) + email + logout
+// upar ki patti — app ka naam, aur login ho to Tasks/Tickets links, avatar + naam (click = profile) + logout
 import { Link, NavLink } from 'react-router'
 import { useAuth } from '../hooks/useAuth'
-import AvatarButton from './AvatarButton'
+import Avatar from './Avatar'
 import { button, cn } from '../ui/styles'
 
 export default function Navbar() {
@@ -34,9 +34,17 @@ export default function Navbar() {
       </div>
       {user && (
         <div className="flex min-w-0 items-center gap-3">
-          <AvatarButton />
-          {/* lamba email ek line mein, aakhir mein "…"; phone par (sm se chhota) nahi — links, avatar, logout ke baad jagah nahi */}
-          <span className="truncate text-sm text-muted max-sm:hidden">{user.email}</span>
+          {/* tasveer + naam = profile ka rasta; naam na ho to email */}
+          <Link
+            to="/profile"
+            className="flex min-w-0 items-center gap-2 no-underline"
+            title="Profile"
+            aria-label={`Profile: ${user.name || user.email}`}
+          >
+            <Avatar />
+            {/* lamba naam ek line mein, aakhir mein "…"; phone par (sm se chhota) nahi — links, avatar, logout ke baad jagah nahi */}
+            <span className="truncate text-sm text-muted hover:text-text max-sm:hidden">{user.name || user.email}</span>
+          </Link>
           <button className={button({ variant: 'secondary', size: 'sm' })} onClick={() => logout()}>
             Logout
           </button>

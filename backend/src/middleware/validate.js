@@ -10,8 +10,9 @@ function handleValidation(req, res, next) {
     return next();
   }
 
+  // poori body ka rule (jaise profile ki anjaan fields) ka path "" hota hai — use "body" kehte hain
   // onlyFirstError: har field ki sirf pehli galti — warna ek ghalat email ki 3 galtiyan ek saath
-  const errors = result.array({ onlyFirstError: true }).map((error) => ({ field: error.path, message: error.msg }));
+  const errors = result.array({ onlyFirstError: true }).map((error) => ({ field: error.path || "body", message: error.msg }));
 
   // message = pehli galti — frontend (toAlert) aur purane clients abhi bhi sirf message padhte hain
   const error = new BadRequestError(errors[0].message);

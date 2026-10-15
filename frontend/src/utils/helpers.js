@@ -56,6 +56,23 @@ export function passwordRuleError(password) {
   return null
 }
 
+// profile — backend (validators/userValidators.js) jaise hi rules aur messages; trim ke baad
+export const NAME_MIN_LENGTH = 2
+export const NAME_MAX_LENGTH = 50
+// Pakistani mobile — 03 se shuru, bilkul 11 digits
+export const PHONE_PATTERN = /^03\d{9}$/
+
+// har field ki galti { name?, phone? } — khaali object = sab theek
+export function profileFieldErrors({ name, phone }) {
+  const errors = {}
+  const trimmedName = name.trim()
+  if (trimmedName.length < NAME_MIN_LENGTH || trimmedName.length > NAME_MAX_LENGTH) {
+    errors.name = `Name must be between ${NAME_MIN_LENGTH} and ${NAME_MAX_LENGTH} characters`
+  }
+  if (!PHONE_PATTERN.test(phone.trim())) errors.phone = 'Phone must be in the format 03XXXXXXXXX (11 digits)'
+  return errors
+}
+
 // task title ki had — backend ki tarah trim ke baad 200 (middleware/validation.js titleError)
 // naya task (TaskForm) aur edit (TaskItem) dono yahi istemal karte hain
 export const MAX_TITLE_LENGTH = 200

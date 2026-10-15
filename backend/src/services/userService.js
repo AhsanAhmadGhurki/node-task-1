@@ -1,4 +1,4 @@
-// user profile ka DB kaam — abhi sirf avatar
+// user profile ka DB kaam — avatar, name, phone
 const fs = require("fs/promises");
 const path = require("path");
 const { assertFileSignature } = require("../utils/fileSignature");
@@ -78,6 +78,34 @@ async function setAvatar(userId, filename, mimetype) {
   return avatar;
 }
 
+// apni profile — DB se taaza (session mein purani ho sakti hai, ya login ke waqt name tha hi nahi)
+async function getProfile(userId) {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+  return user;
+}
+
+// name/phone badlo — sirf jo bheja gaya ($set mein undefined nahi jaata), naya user lautata hai
+// runValidators — model ke rules (length, phone format) update par bhi chalein
+async function updateProfile(userId, { name, phone }) {
+  const changes = {};
+  if (name !== undefined) changes.name = name;
+  if (phone !== undefined) changes.phone = phone;
+
+  const user = await User.findByIdAndUpdate(userId, { $set: changes }, { returnDocument: "after", runValidators: true });
+
+  // token sahi tha lekin user beech mein delete ho gaya
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+
+  return user;
+}
+
 module.exports = {
-  setAvatar
+  setAvatar,
+  getProfile,
+  updateProfile
 };

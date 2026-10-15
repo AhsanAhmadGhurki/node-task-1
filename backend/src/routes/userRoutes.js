@@ -1,6 +1,8 @@
 const express = require("express");
 const upload = require("../config/upload");
 const userController = require("../controllers/userController");
+const { updateProfileRules } = require("../validators/userValidators");
+const { handleValidation } = require("../middleware/validate");
 
 // app.js mein "/user" par authMiddleware ke BAAD lagaya gaya hai — yahan har route logged-in user ka
 // (upload.js filename ke liye req.user.id chahiye — isliye auth yahan dobara nahi, app.js mein pehle)
@@ -12,5 +14,11 @@ router.post(
   upload.single("avatar"),
   userController.uploadAvatar
 );
+
+// GET /user/profile — apni profile (email, name, phone, avatar)
+router.get("/profile", userController.getProfile);
+
+// PATCH /user/profile — JSON body: name aur/ya phone (partial update)
+router.patch("/profile", updateProfileRules, handleValidation, userController.updateProfile);
 
 module.exports = router;
