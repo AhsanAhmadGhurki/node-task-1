@@ -8,7 +8,7 @@ const { setupTestApp } = require("./helpers");
 const ctx = setupTestApp("auth");
 const { mongoose, config, sentEmails, codesFor, post } = ctx;
 
-const PASSWORD = "Valid1234";
+const PASSWORD = "Valid1234!";
 
 const registerAndVerify = (email, password = PASSWORD) => ctx.verifiedAccount(email, password);
 
@@ -38,7 +38,7 @@ test("duplicate VERIFIED email → 409, chahe case/spaces alag hon, koi email na
   sentEmails.length = 0;
 
   for (const email of ["verified@example.com", "VERIFIED@Example.com", "  verified@example.com  "]) {
-    const res = await post("/auth/register", { email, password: "Other1234" });
+    const res = await post("/auth/register", { email, password: "Other1234!" });
     assert.equal(res.status, 409, email);
     assert.equal(res.json.message, "Email already registered");
   }
@@ -91,16 +91,16 @@ test("verify → seedha login (token + httpOnly refresh cookie); logout ke baad 
 });
 
 test("squatting: kisi aur ka email pehle register karne wale ka password nahi chalta", async () => {
-  await post("/auth/register", { email: "victim@example.com", password: "Attacker123" });
-  await post("/auth/register", { email: "victim@example.com", password: "Victim1234" });
+  await post("/auth/register", { email: "victim@example.com", password: "Attacker123!" });
+  await post("/auth/register", { email: "victim@example.com", password: "Victim1234!" });
   // attacker phir se — aakhri code attacker ke register ka
-  await post("/auth/register", { email: "victim@example.com", password: "Attacker123" });
+  await post("/auth/register", { email: "victim@example.com", password: "Attacker123!" });
   const otp = codesFor("victim@example.com").at(-1);
 
   // asli malik (inbox wala) apne password ke saath verify karta hai
-  assert.equal((await post("/auth/verify-email", { email: "victim@example.com", otp, password: "Victim1234" })).status, 200);
-  assert.equal((await post("/auth/login", { email: "victim@example.com", password: "Attacker123" })).status, 401);
-  assert.equal((await post("/auth/login", { email: "victim@example.com", password: "Victim1234" })).status, 200);
+  assert.equal((await post("/auth/verify-email", { email: "victim@example.com", otp, password: "Victim1234!" })).status, 200);
+  assert.equal((await post("/auth/login", { email: "victim@example.com", password: "Attacker123!" })).status, 401);
+  assert.equal((await post("/auth/login", { email: "victim@example.com", password: "Victim1234!" })).status, 200);
 });
 
 test("5 galat koshishon ke baad code band; resend ke baad purana code band", async () => {
@@ -232,14 +232,15 @@ test("API key: galat, chhoti, lambi, missing → 401; sahi → aage", async () =
   assert.equal((await ctx.request("GET", "/tasks", { token: json.token })).status, 200);
 });
 
-test("password rules: aage/peeche space nahi, letter + number dono, 8+ — beech ka space theek", async () => {
+test("password rules: aage/peeche space nahi, uppercase + number + special, 8+ — beech ka space theek", async () => {
   const cases = [
     ["        1", "Password must not start or end with a space"],
     [" Valid1234", "Password must not start or end with a space"],
     ["Valid1234 ", "Password must not start or end with a space"],
-    ["12345678", "Password must contain at least one letter"],
-    ["abcdefgh", "Password must contain at least one number"],
-    ["Ab1", "Password must be at least 8 characters"]
+    ["valid1234!", "Password must contain at least one uppercase letter"],
+    ["Validpass!", "Password must contain at least one number"],
+    ["Valid1234", "Password must contain at least one special character (e.g. !@#$%)"],
+    ["Ab1!", "Password must be at least 8 characters"]
   ];
   for (const [password, message] of cases) {
     const res = await post("/auth/register", { email: "rules@example.com", password });
@@ -251,19 +252,19 @@ test("password rules: aage/peeche space nahi, letter + number dono, 8+ — beech
   assert.equal(verify.status, 400);
   assert.equal(verify.json.message, "Password must not start or end with a space");
 
-  assert.equal((await post("/auth/register", { email: "rules@example.com", password: "my pass 123" })).status, 201);
-  assert.equal((await post("/auth/register", { email: "unicode@example.com", password: "پاسورڈ12345" })).status, 201);
+  assert.equal((await post("/auth/register", { email: "rules@example.com", password: "My pass 123!" })).status, 201);
+  assert.equal((await post("/auth/register", { email: "unicode@example.com", password: "پاسورڈA12345!" })).status, 201);
 });
 
 test("unverified email dobara register → password NAHI badalta, sirf naya code", async () => {
-  await post("/auth/register", { email: "keep@example.com", password: "FirstPass1" });
-  const again = await post("/auth/register", { email: "keep@example.com", password: "SecondPass2" });
+  await post("/auth/register", { email: "keep@example.com", password: "FirstPass1!" });
+  const again = await post("/auth/register", { email: "keep@example.com", password: "SecondPass2!" });
   assert.equal(again.status, 200);
   assert.equal(codesFor("keep@example.com").length, 2);
 
   // pehla password abhi bhi account ka hai — 403 (sahi password, lekin unverified); doosra 401
-  assert.equal((await post("/auth/login", { email: "keep@example.com", password: "FirstPass1" })).status, 403);
-  assert.equal((await post("/auth/login", { email: "keep@example.com", password: "SecondPass2" })).status, 401);
+  assert.equal((await post("/auth/login", { email: "keep@example.com", password: "FirstPass1!" })).status, 403);
+  assert.equal((await post("/auth/login", { email: "keep@example.com", password: "SecondPass2!" })).status, 401);
 });
 
 test("email ka text: expiry config se (hardcode nahi), code text + html dono mein", () => {

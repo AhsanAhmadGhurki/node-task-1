@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { cn } from '../ui/styles'
 
+// ring bhi size ke saath — base mein ek ring aur upar se doosri jodo to Tailwind mein tay nahi kaun jeete
 const sizes = {
-  sm: 'size-8 text-sm',
-  lg: 'size-20 text-3xl',
+  sm: 'size-9 text-sm ring-2 ring-card',
+  lg: 'size-20 text-3xl ring-4 ring-primary-soft',
 }
 
 export default function Avatar({ size = 'sm', className }) {
@@ -21,7 +22,7 @@ export default function Avatar({ size = 'sm', className }) {
   return (
     <span
       className={cn(
-        'flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-primary font-semibold text-white',
+        'flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary font-semibold text-white',
         sizes[size],
         className,
       )}

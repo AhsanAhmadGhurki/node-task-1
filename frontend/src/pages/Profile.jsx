@@ -1,12 +1,15 @@
 // apni profile — tasveer, name aur phone; khulte hi DB se taaza (GET), save par sirf badli hui fields (PATCH)
 import { useEffect, useId, useRef, useState } from 'react'
 import { getProfile, updateProfile } from '../api/userApi'
-import Alert from '../components/Alert'
 import AvatarUpload from '../components/AvatarUpload'
 import Loader from '../components/Loader'
+import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
-import { button, card, cn, field, form, hint, hintText, input, label, muted, title } from '../ui/styles'
+import { button, card, cn, field, form, hint, hintText, input, label, pageTitle, subtitle, titleText } from '../ui/styles'
 import { NAME_MAX_LENGTH, profileFieldErrors, toAlert } from '../utils/helpers'
+
+// kamyabi ka paigham itni der baad khud hat jaata hai — error rehta hai jab tak band na karein (Tickets jaisa)
+const SUCCESS_ALERT_MS = 3000
 
 export default function Profile() {
   const { user, updateUser } = useAuth()
@@ -23,6 +26,12 @@ export default function Profile() {
   const phoneId = useId()
   // DB se profile aane tak form nahi — warna purane session ki khaali values dikhti, phir badal jaatin
   const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!alert?.ok) return undefined
+    const timer = setTimeout(() => setAlert(null), SUCCESS_ALERT_MS)
+    return () => clearTimeout(timer)
+  }, [alert])
 
   // page khulte hi DB se taaza profile — purane login ke session mein name/phone hote hi nahi
   // state sirf jawab aane par; cancelled — jawab se pehle page band ho to state na badle
@@ -88,64 +97,74 @@ export default function Profile() {
   }
 
   return (
-    <div className={card}>
-      <h1 className={title}>Profile</h1>
-      <AvatarUpload />
-      <p className={cn(muted, 'mb-5 wrap-anywhere')}>{user.email}</p>
-      <Alert alert={alert} />
+    <div className="mx-auto w-full max-w-2xl">
+      <h1 className={pageTitle}>Profile</h1>
+      <p className={subtitle}>Apna naam, phone aur tasveer — email badli nahi ja sakti.</p>
 
-      {!loaded ? (
-        <Loader />
-      ) : (
-        <form className={form} onSubmit={handleSubmit} noValidate>
-          <div className={field}>
-            <label className={label} htmlFor={nameId}>
-              Name
-            </label>
-            <input
-              id={nameId}
-              className={input}
-              value={values.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="Ali Khan"
-              maxLength={NAME_MAX_LENGTH}
-              autoComplete="name"
-              aria-invalid={Boolean(errors.name)}
-            />
-            {errors.name && <span className={cn(hintText, 'text-error-text')}>{errors.name}</span>}
-          </div>
+      <section className={cn(card, 'mt-8')}>
+        <AvatarUpload />
 
-          <div className={field}>
-            <label className={label} htmlFor={phoneId}>
-              Phone
-            </label>
-            <input
-              id={phoneId}
-              className={input}
-              value={values.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
-              placeholder="03001234567"
-              inputMode="numeric"
-              maxLength={11}
-              autoComplete="tel"
-              aria-invalid={Boolean(errors.phone)}
-            />
-            {errors.phone ? (
-              <span className={cn(hintText, 'text-error-text')}>{errors.phone}</span>
+        <div className="mt-6 border-t border-border pt-6">
+          <h2 className={titleText}>Zaati maloomat</h2>
+          <p className={cn(subtitle, 'wrap-anywhere')}>{user.email}</p>
+          <div className="mt-6">
+            {!loaded ? (
+              <Loader />
             ) : (
-              <span className={hint}>03XXXXXXXXX — bilkul 11 digits, spaces ya dash nahi</span>
+            <form className={form} onSubmit={handleSubmit} noValidate>
+              <div className={field}>
+                <label className={label} htmlFor={nameId}>
+                  Name
+                </label>
+                <input
+                  id={nameId}
+                  className={input}
+                  value={values.name}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  placeholder="Ali Khan"
+                  maxLength={NAME_MAX_LENGTH}
+                  autoComplete="name"
+                  aria-invalid={Boolean(errors.name)}
+                />
+                {errors.name && <span className={cn(hintText, 'text-error-text')}>{errors.name}</span>}
+              </div>
+
+              <div className={field}>
+                <label className={label} htmlFor={phoneId}>
+                  Phone
+                </label>
+                <input
+                  id={phoneId}
+                  className={input}
+                  value={values.phone}
+                  onChange={(e) => handleChange('phone', e.target.value)}
+                  placeholder="03001234567"
+                  inputMode="numeric"
+                  maxLength={11}
+                  autoComplete="tel"
+                  aria-invalid={Boolean(errors.phone)}
+                />
+                {errors.phone ? (
+                  <span className={cn(hintText, 'text-error-text')}>{errors.phone}</span>
+                ) : (
+                  <span className={hint}>03XXXXXXXXX — bilkul 11 digits, spaces ya dash nahi</span>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className={cn(button({ size: 'lg' }), 'mt-2 w-full')}
+                disabled={busy || nothingChanged || Object.keys(clientErrors).length > 0}
+              >
+                {busy ? 'Save ho raha hai…' : 'Save'}
+              </button>
+            </form>
             )}
           </div>
+        </div>
+      </section>
 
-          <button
-            type="submit"
-            className={button()}
-            disabled={busy || nothingChanged || Object.keys(clientErrors).length > 0}
-          >
-            {busy ? 'Save ho raha hai…' : 'Save'}
-          </button>
-        </form>
-      )}
+      <Toast alert={alert} onClose={() => setAlert(null)} />
     </div>
   )
 }

@@ -18,8 +18,29 @@ function emailRule() {
 
 const passwordNotTooLong = (password) => Buffer.byteLength(password, "utf8") <= MAX_PASSWORD_BYTES;
 
-// naya password (register) — 8+, 72 bytes tak, aage/peeche space nahi, ek letter, ek number
+// mazboot password ki shartein — custom validator: pehli toot-ti shart ka message throw karta hai
+// (express-validator throw hua message hi error.msg bana deta hai — har shart ka apna saaf message)
+// uppercase ki shart se "kam se kam ek letter" khud poori ho jaati hai — alag rule nahi
+const PASSWORD_STRENGTH_RULES = [
+  [/[A-Z]/, "Password must contain at least one uppercase letter"],
+  // \d JavaScript mein sirf 0–9 hai
+  [/\d/, "Password must contain at least one number"],
+  // letter, number aur space ke ilawa koi bhi nishaan (!@#$%^&*… , . _ - waghaira)
+  [/[^\p{L}\p{N}\s]/u, "Password must contain at least one special character (e.g. !@#$%)"]
+];
+
+function strongPassword(password) {
+  for (const [pattern, message] of PASSWORD_STRENGTH_RULES) {
+    if (!pattern.test(password)) {
+      throw new Error(message);
+    }
+  }
+  return true;
+}
+
+// naya password (register + verify-email) — 8+, 72 bytes tak, aage/peeche space nahi, uppercase + number + special
 // password trim NAHI hota — spaces bhi password ka hissa hain; frontend (helpers.passwordRuleError) bhi yahi rules
+// login par ye rules nahi — purane (kamzor) passwords wale users login kar sakein
 function newPasswordRule() {
   return requiredString("password", "Password")
     .notEmpty().withMessage("Password is required").bail()
@@ -27,13 +48,20 @@ function newPasswordRule() {
     .custom(passwordNotTooLong).withMessage(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`).bail()
     // copy-paste mein aaya space user ko dikhta nahi, login par wo type nahi karta
     .custom((password) => password === password.trim()).withMessage("Password must not start or end with a space").bail()
-    // \p{L} = koi bhi letter (a-z, é, ب …) — sirf ASCII nahi
-    .matches(/\p{L}/u).withMessage("Password must contain at least one letter").bail()
-    .matches(/\d/).withMessage("Password must contain at least one number");
+    .custom(strongPassword);
 }
 
 // POST /auth/register
 const registerRules = [emailRule(), newPasswordRule()];
+
+// POST /auth/verify-email — email + bilkul 6 digit ka code (string; 123456 number nahi) + naya password
+// password yahin account par lagta hai — is liye register wale hi rules (warna kamzor password verify par set ho jaata)
+// email ka format nahi — galat email par service ka generic "Invalid or expired code" hi aata hai
+const verifyEmailRules = [
+  requiredString("email", "Email").trim().toLowerCase().notEmpty().withMessage("Email is required"),
+  requiredString("otp", "Code").matches(/^\d{6}$/).withMessage("Code must be 6 digits"),
+  newPasswordRule()
+];
 
 // POST /auth/login — password ke naye rules NAHI (purane passwords wale users login kar sakein), sirf required + 72 bytes
 const loginRules = [
@@ -43,4 +71,4 @@ const loginRules = [
     .custom(passwordNotTooLong).withMessage(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`)
 ];
 
-module.exports = { registerRules, loginRules };
+module.exports = { registerRules, verifyEmailRules, loginRules };

@@ -12,7 +12,7 @@ after(() => ctx.stop());
 
 // IP limiter (5 per 15 min) bhi asli hai — is liye poora check 5 requests mein
 test("resend: ek email par 60s mein ek hi request; har email par, account ho ya na ho", async () => {
-  await ctx.post("/auth/register", { email: "cool@example.com", password: "Valid1234" });
+  await ctx.post("/auth/register", { email: "cool@example.com", password: "Valid1234!" });
 
   assert.equal((await resend("cool@example.com")).status, 200);
   const second = await resend("cool@example.com");
@@ -31,7 +31,7 @@ test("register: ek IP se ghante mein 10 — 11th par 429", async () => {
   // pehle test ne 1 register kiya — ab tak ki ginti ke saath 11th tak
   const statuses = [];
   for (let i = 0; i < 10; i++) {
-    statuses.push((await ctx.post("/auth/register", { email: `bulk${i}@example.com`, password: "Valid1234" })).status);
+    statuses.push((await ctx.post("/auth/register", { email: `bulk${i}@example.com`, password: "Valid1234!" })).status);
   }
   assert.deepEqual(statuses.slice(0, 9), Array(9).fill(201));
   const last = statuses.at(-1);
@@ -40,7 +40,7 @@ test("register: ek IP se ghante mein 10 — 11th par 429", async () => {
 
 test("login: account lockout (5) IP limit (50) se pehle — ek account ki galtiyan network band nahi karti", async () => {
   // users seedha DB mein — register ki IP had (10) is file ka pichla test pehle hi poori kar chuka hai
-  const passwordHash = await require("bcryptjs").hash("Valid1234", 12);
+  const passwordHash = await require("bcryptjs").hash("Valid1234!", 12);
   await ctx.mongoose.model("User").create([
     { email: "ip-a@example.com", password: passwordHash, isVerified: true },
     { email: "ip-b@example.com", password: passwordHash, isVerified: true }
@@ -54,7 +54,7 @@ test("login: account lockout (5) IP limit (50) se pehle — ek account ki galtiy
 
   // usi IP se doosra account — pehli galti par 401 (pehle 10 ki IP had par yahan 429 aata), sahi par 200
   assert.equal((await login("ip-b@example.com", "Wrong1234")).status, 401);
-  assert.equal((await login("ip-b@example.com", "Valid1234")).status, 200);
+  assert.equal((await login("ip-b@example.com", "Valid1234!")).status, 200);
 
   // IP had (50 galat) — phir har email par 429, message mein "from this network" aur asal minute
   let last;

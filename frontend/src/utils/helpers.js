@@ -42,17 +42,28 @@ export function toAlert(error) {
   return { ok: false, status: 0, text: 'Backend se connect nahi ho saka — kya backend chal raha hai?' }
 }
 
-// naye password ke rules — backend (middleware/validation.js newPasswordError) jaise hi, wahi messages
+// naye password ke rules — backend (validators/authValidators.js newPasswordRule) jaise hi, wahi messages
 // submit se pehle check — galat password par request hi na jaye; asal faisla phir bhi backend karta hai
-export const PASSWORD_RULES_HINT = '8+ characters, kam se kam ek letter aur ek number, aage/peeche space nahi'
+// register par live checklist — har rule abhi poora hua ya nahi (passwordRuleError jaise hi rules)
+export function passwordChecks(password) {
+  return [
+    ['8+ characters', password.length >= 8],
+    ['Ek capital letter (A–Z)', /[A-Z]/.test(password)],
+    ['Ek number', /\d/.test(password)],
+    ['Ek special character (!@#$…)', /[^\p{L}\p{N}\s]/u.test(password)],
+    ['Aage/peeche space nahi', password !== '' && password === password.trim()],
+  ]
+}
 
 export function passwordRuleError(password) {
   if (password.length < 8) return 'Password must be at least 8 characters'
   // bcrypt 72 bytes ke baad ka hissa nahi padhta — backend bhi isi par rokta hai
   if (new TextEncoder().encode(password).length > 72) return 'Password must be at most 72 bytes'
   if (password !== password.trim()) return 'Password must not start or end with a space'
-  if (!/\p{L}/u.test(password)) return 'Password must contain at least one letter'
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter'
   if (!/\d/.test(password)) return 'Password must contain at least one number'
+  // letter, number aur space ke ilawa koi bhi nishaan
+  if (!/[^\p{L}\p{N}\s]/u.test(password)) return 'Password must contain at least one special character (e.g. !@#$%)'
   return null
 }
 
@@ -98,13 +109,42 @@ export const TICKET_TITLE_MIN_LENGTH = 5
 export const TICKET_TITLE_MAX_LENGTH = 100
 export const MAX_DESCRIPTION_LENGTH = 1000
 
+// ek file ki galti — list mein usi file ke saath dikhti hai, taake pata chale kaunsi hatani hai
+export function attachmentFileError(file) {
+  if (!ATTACHMENT_TYPES.includes(file.type)) return 'Sirf JPEG, PNG, WebP ya PDF'
+  if (file.size > MAX_ATTACHMENT_BYTES) return '2 MB se badi'
+  return null
+}
+
+// poori selection ki galti (backend jaise messages) — ho to submit band
 export function attachmentFilesError(files) {
   if (files.length > MAX_ATTACHMENTS) return `You can attach at most ${MAX_ATTACHMENTS} files.`
   if (files.some((file) => !ATTACHMENT_TYPES.includes(file.type))) return 'Attachments must be JPEG, PNG, WebP or PDF files.'
   if (files.some((file) => file.size > MAX_ATTACHMENT_BYTES)) return 'Each attachment must be at most 2 MB.'
-  const total = files.reduce((sum, file) => sum + file.size, 0)
-  if (total > MAX_TOTAL_ATTACHMENT_BYTES) return 'All attachments combined must be at most 5 MB.'
+  if (totalBytes(files) > MAX_TOTAL_ATTACHMENT_BYTES) return 'All attachments combined must be at most 5 MB.'
   return null
+}
+
+export function totalBytes(files) {
+  return files.reduce((sum, file) => sum + file.size, 0)
+}
+
+// "5 minute pehle" jaisa waqt — ticket list mein; hafte se purana ho to seedhi tareekh
+const relativeTime = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+export function timeAgo(date) {
+  const seconds = Math.round((new Date(date) - Date.now()) / 1000)
+  const steps = [
+    [60, 'second'],
+    [60, 'minute'],
+    [24, 'hour'],
+    [7, 'day'],
+  ]
+  let value = seconds
+  for (const [size, unit] of steps) {
+    if (Math.abs(value) < size) return relativeTime.format(value, unit)
+    value = Math.round(value / size)
+  }
+  return new Date(date).toLocaleDateString()
 }
 
 // 1536 → "1.5 KB" — file ki size dikhane ke liye

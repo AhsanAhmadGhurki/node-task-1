@@ -96,7 +96,9 @@ function setupTestApp(name, { realLimiters = false } = {}) {
     assert.match(testDb, /_test$/);
     await mongoose.connect(config.mongoUri);
     await mongoose.connection.db.dropDatabase();
-    await Promise.all(["User", "Otp", "RefreshToken", "Task", "Ticket"].map((model) => mongoose.model(model).init()));
+    // createIndexes, init() nahi — init() ka promise cache hota hai: connect par chala auto-index drop se PEHLE
+    // poora ho jaye to drop use mita deta aur init() dobara nahi banata (unique email index ke baghair tests chalte)
+    await Promise.all(["User", "Otp", "RefreshToken", "Task", "Ticket"].map((model) => mongoose.model(model).createIndexes()));
     ctx.server = app.listen(0);
     await new Promise((resolve) => ctx.server.once("listening", resolve));
     ctx.baseUrl = `http://127.0.0.1:${ctx.server.address().port}`;
@@ -109,7 +111,7 @@ function setupTestApp(name, { realLimiters = false } = {}) {
   };
 
   // register + inbox wala code se verify — verified account aur uska token
-  ctx.verifiedAccount = async (email, password = "Valid1234") => {
+  ctx.verifiedAccount = async (email, password = "Valid1234!") => {
     await ctx.post("/auth/register", { email, password });
     const otp = ctx.codesFor(email).at(-1);
     return ctx.post("/auth/verify-email", { email, otp, password });

@@ -6,7 +6,7 @@ const { setupTestApp } = require("./helpers");
 
 const ctx = setupTestApp("lockout");
 const { mongoose, post } = ctx;
-const PASSWORD = "Valid1234";
+const PASSWORD = "Valid1234!";
 const WRONG = "Wrong1234";
 
 const login = (email, password) => post("/auth/login", { email, password });
