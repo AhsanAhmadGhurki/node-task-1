@@ -7,7 +7,8 @@ export async function getTickets() {
 }
 
 // POST /tickets — multipart: title, description + 0–3 files (field "attachments"); naya ticket lautata hai
-export async function createTicket({ title, description, files }) {
+// onProgress(0–100) — 5 MB tak upload mein waqt lagta hai, user ko pata chale kitna gaya
+export async function createTicket({ title, description, files }, onProgress) {
   const form = new FormData()
   // text fields pehle — backend Multer ke baad hi req.body padhta hai, order se farq nahi, bas saaf rahe
   form.append('title', title)
@@ -18,6 +19,7 @@ export async function createTicket({ title, description, files }) {
   // instance ka default "application/json" hai — us par axios FormData ko JSON bana deta (files gayab)
   const { data } = await api.post('/tickets', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event) => event.total && onProgress?.(Math.round((event.loaded / event.total) * 100)),
   })
   return data.ticket
 }

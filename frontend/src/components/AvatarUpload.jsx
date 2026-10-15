@@ -2,7 +2,8 @@
 import { useRef, useState } from 'react'
 import { uploadAvatar } from '../api/userApi'
 import { useAuth } from '../hooks/useAuth'
-import { button, cn, hint, hintText } from '../ui/styles'
+import { UploadIcon } from '../ui/icons'
+import { button, cn, hint, hintText, titleText } from '../ui/styles'
 import { AVATAR_TYPES, avatarFileError, toAlert } from '../utils/helpers'
 import Avatar from './Avatar'
 
@@ -39,15 +40,17 @@ export default function AvatarUpload() {
   }
 
   return (
-    <div className="mb-5 flex items-center gap-4">
+    <div className="flex items-center gap-5">
       <Avatar size="lg" className={cn(uploading && 'opacity-60')} />
-      <div className="flex min-w-0 flex-col items-start gap-1.5">
+      <div className="flex min-w-0 flex-col items-start gap-2">
+        <h2 className={titleText}>Profile photo</h2>
         <button
           type="button"
           className={button({ variant: 'secondary', size: 'sm', weight: 'medium' })}
           onClick={() => inputRef.current.click()}
           disabled={uploading}
         >
+          <UploadIcon />
           {uploading ? 'Upload ho raha hai…' : 'Photo badlo'}
         </button>
         {error ? (

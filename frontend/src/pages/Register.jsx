@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { register } from '../api/authApi'
 import Alert from '../components/Alert'
+import AuthLayout from '../components/AuthLayout'
 import PasswordInput from '../components/PasswordInput'
 import VerifyEmail from '../components/VerifyEmail'
 import { useAuth } from '../hooks/useAuth'
-import { button, card, cn, field, form, input, label, link, muted, title } from '../ui/styles'
-import { PASSWORD_RULES_HINT, passwordRuleError, toAlert } from '../utils/helpers'
+import { ArrowLeftIcon, CheckIcon } from '../ui/icons'
+import { button, cn, field, form, input, label, link } from '../ui/styles'
+import { passwordChecks, passwordRuleError, toAlert } from '../utils/helpers'
 
 export default function Register() {
   const { token, login } = useAuth()
@@ -40,7 +42,7 @@ export default function Register() {
       // 200 = pehle se unverified account (naya nahi bana) — backend ka generic paigham, lekin code phir bhi jaata hai
       setAlert(
         created
-          ? { ok: true, status: 201, text: 'Account created! Ab email verify karein.' }
+          ? { ok: true, status: 201, text: 'Account ban gaya! Ab email verify karein.' }
           : { ok: true, status: 200, text: data.message },
       )
       // backend jaisi hi shakal — "QA@X.com " aur "qa@x.com" ek hi account
@@ -69,8 +71,16 @@ export default function Register() {
 
   if (verifyCreds) {
     return (
-      <section className={card}>
-        <h1 className={title}>Verify your email</h1>
+      <AuthLayout
+        heading="Email verify karein"
+        description="Account banane ka aakhri qadam."
+        footer={
+          <button type="button" className={button({ variant: 'ghost', size: 'sm', weight: 'medium' })} onClick={startOver}>
+            <ArrowLeftIcon />
+            Galat email? Wapas register par
+          </button>
+        }
+      >
         <Alert alert={alert} />
         <VerifyEmail
           key={verifyCreds.email}
@@ -80,19 +90,23 @@ export default function Register() {
           onResult={setAlert}
           onVerified={handleVerified}
         />
-        <p className={cn(muted, 'mt-5 text-center')}>
-          Galat email?{' '}
-          <button type="button" className={button({ variant: 'secondary', size: 'sm' })} onClick={startOver}>
-            Wapas register par
-          </button>
-        </p>
-      </section>
+      </AuthLayout>
     )
   }
 
   return (
-    <section className={card}>
-      <h1 className={title}>Register</h1>
+    <AuthLayout
+      heading="Account banayein"
+      description="Shuru karne mein ek minute lagta hai."
+      footer={
+        <>
+          Pehle se account hai?{' '}
+          <Link to="/login" className={link}>
+            Login karein
+          </Link>
+        </>
+      }
+    >
       <Alert alert={alert} />
 
       <form className={form} onSubmit={handleSubmit}>
@@ -108,18 +122,35 @@ export default function Register() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            placeholder="aap@example.com"
             required
           />
         </div>
-        {/* backend ke rules — pehle se bata do taake 400 kam aaye */}
-        <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" hint={PASSWORD_RULES_HINT} />
-        <button type="submit" className={button()} disabled={loading}>
-          {loading ? 'Please wait…' : 'Register'}
+        {/* backend ke rules — likhte waqt hi har rule ka check, taake 400 kam aaye */}
+        <PasswordInput value={password} onChange={setPassword} autoComplete="new-password">
+          <ul className="grid gap-x-3 gap-y-1.5 sm:grid-cols-2">
+            {passwordChecks(password).map(([rule, ok]) => (
+              <li key={rule} className={cn('flex items-center gap-1.5', ok ? 'text-success-text' : 'text-muted')}>
+                <span
+                  className={cn(
+                    'flex size-3.5 shrink-0 items-center justify-center rounded-full',
+                    ok ? 'bg-success-text text-card' : 'border border-border',
+                  )}
+                >
+                  {ok && <CheckIcon className="size-2.5" strokeWidth={4} />}
+                </span>
+                {rule}
+              </li>
+            ))}
+          </ul>
+        </PasswordInput>
+        <button type="submit" className={cn(button({ size: 'lg' }), 'mt-2 w-full')} disabled={loading}>
+          {loading ? 'Please wait…' : 'Account banayein'}
         </button>
       </form>
 
       {alreadyRegistered && (
-        <p className={cn(muted, 'mt-3.5')}>
+        <p className="mt-4 text-sm text-muted">
           Is email se account pehle se hai —{' '}
           <Link to="/login" className={link}>
             Login karein
@@ -127,13 +158,6 @@ export default function Register() {
           .
         </p>
       )}
-
-      <p className={cn(muted, 'mt-5 text-center')}>
-        Pehle se account hai?{' '}
-        <Link to="/login" className={link}>
-          Login karein
-        </Link>
-      </p>
-    </section>
+    </AuthLayout>
   )
 }

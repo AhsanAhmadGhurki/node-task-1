@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { login as loginRequest } from '../api/authApi'
 import Alert from '../components/Alert'
+import AuthLayout from '../components/AuthLayout'
 import PasswordInput from '../components/PasswordInput'
 import VerifyEmail from '../components/VerifyEmail'
 import { useAuth } from '../hooks/useAuth'
-import { button, card, cn, field, form, input, label, link, muted, title } from '../ui/styles'
+import { button, cn, field, form, input, label, link } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 
 export default function Login() {
@@ -51,8 +52,18 @@ export default function Login() {
   }
 
   return (
-    <section className={card}>
-      <h1 className={title}>Login</h1>
+    <AuthLayout
+      heading="Welcome back"
+      description="Apne account mein login karein."
+      footer={
+        <>
+          Account nahi hai?{' '}
+          <Link to="/register" className={link}>
+            Register karein
+          </Link>
+        </>
+      }
+    >
       {/* "Session expired" jaisa paigham (context se) ya is form ka apna jawab */}
       <Alert alert={alert || notice} />
 
@@ -69,18 +80,19 @@ export default function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            placeholder="aap@example.com"
             required
           />
         </div>
         <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" />
-        <button type="submit" className={button()} disabled={loading}>
+        <button type="submit" className={cn(button({ size: 'lg' }), 'mt-2 w-full')} disabled={loading}>
           {loading ? 'Please wait…' : 'Login'}
         </button>
       </form>
 
       {/* login form se alag dikhe — upar line */}
       {verifyCreds && (
-        <div className="mt-[18px] border-t border-border pt-4">
+        <div className="mt-8 border-t border-border pt-6">
           <VerifyEmail
             key={verifyCreds.email}
             email={verifyCreds.email}
@@ -90,13 +102,6 @@ export default function Login() {
           />
         </div>
       )}
-
-      <p className={cn(muted, 'mt-5 text-center')}>
-        Account nahi hai?{' '}
-        <Link to="/register" className={link}>
-          Register karein
-        </Link>
-      </p>
-    </section>
+    </AuthLayout>
   )
 }
