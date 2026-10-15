@@ -42,17 +42,20 @@ export function toAlert(error) {
   return { ok: false, status: 0, text: 'Backend se connect nahi ho saka — kya backend chal raha hai?' }
 }
 
-// naye password ke rules — backend (middleware/validation.js newPasswordError) jaise hi, wahi messages
+// naye password ke rules — backend (validators/authValidators.js newPasswordRule) jaise hi, wahi messages
 // submit se pehle check — galat password par request hi na jaye; asal faisla phir bhi backend karta hai
-export const PASSWORD_RULES_HINT = '8+ characters, kam se kam ek letter aur ek number, aage/peeche space nahi'
+export const PASSWORD_RULES_HINT =
+  '8+ characters, kam se kam ek capital letter (A–Z), ek number aur ek special character (!@#$…), aage/peeche space nahi'
 
 export function passwordRuleError(password) {
   if (password.length < 8) return 'Password must be at least 8 characters'
   // bcrypt 72 bytes ke baad ka hissa nahi padhta — backend bhi isi par rokta hai
   if (new TextEncoder().encode(password).length > 72) return 'Password must be at most 72 bytes'
   if (password !== password.trim()) return 'Password must not start or end with a space'
-  if (!/\p{L}/u.test(password)) return 'Password must contain at least one letter'
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter'
   if (!/\d/.test(password)) return 'Password must contain at least one number'
+  // letter, number aur space ke ilawa koi bhi nishaan
+  if (!/[^\p{L}\p{N}\s]/u.test(password)) return 'Password must contain at least one special character (e.g. !@#$%)'
   return null
 }
 

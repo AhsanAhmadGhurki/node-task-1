@@ -1,7 +1,7 @@
 const express = require("express");
 const authController = require("../controllers/authController");
-const { validateEmail, validateOtpVerify } = require("../middleware/validation");
-const { registerRules, loginRules } = require("../validators/authValidators");
+const { validateEmail } = require("../middleware/validation");
+const { registerRules, verifyEmailRules, loginRules } = require("../validators/authValidators");
 const { handleValidation } = require("../middleware/validate");
 const { registerLimiter, loginLimiter, resendLimiter, resendEmailCooldown, otpVerifyLimiter } = require("../middleware/rateLimit");
 
@@ -15,7 +15,7 @@ const router = express.Router();
 router.post(["/auth/register", "/register"], registerLimiter, registerRules, handleValidation, authController.register);
 
 // code guess karna — har code par 5 koshishen DB mein, aur ye IP limit alag
-router.post(["/auth/verify-email", "/verify-email"], otpVerifyLimiter, validateOtpVerify, authController.verifyEmail);
+router.post(["/auth/verify-email", "/verify-email"], otpVerifyLimiter, verifyEmailRules, handleValidation, authController.verifyEmail);
 
 // naya code — har request email bhejti hai: IP limit (5/15 min), phir ek email par 60s cooldown,
 // aur user ki 3/ghanta ginti DB mein alag
