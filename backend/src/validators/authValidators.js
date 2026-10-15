@@ -1,17 +1,9 @@
 // register aur login ke rules — express-validator ki chains (har chain ek middleware hai)
-const { body } = require("express-validator");
+const { requiredString } = require("./common");
 
 // bcrypt sirf pehle 72 BYTES padhta hai — lamba password ho to 72 ke baad wala hissa koi bhi ho, login ho jaata
 // isliye had bytes mein (characters nahi — "é" 2 bytes ka hai)
 const MAX_PASSWORD_BYTES = 72;
-
-// missing/null aur ghair-string ({ "$ne": null }, array, number) — isString pehle, warna trim() object ko
-// "[object Object]" string bana kar aage bhej deta
-function requiredString(field, label) {
-  return body(field)
-    .exists({ values: "null" }).withMessage(`${label} is required`).bail()
-    .isString().withMessage(`${label} must be a string`).bail();
-}
 
 // trim + lowercase — "  Test@Email.com  " DB tak "test@email.com" pahunche (controller ko saaf value milti hai)
 // normalizeEmail() nahi — woh Gmail ke dots aur +tags hata deta hai, jo alag mailbox ho sakte hain

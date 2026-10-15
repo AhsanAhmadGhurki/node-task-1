@@ -5,7 +5,8 @@ import {
   ATTACHMENT_TYPES,
   MAX_ATTACHMENTS,
   MAX_DESCRIPTION_LENGTH,
-  MAX_TITLE_LENGTH,
+  TICKET_TITLE_MAX_LENGTH,
+  TICKET_TITLE_MIN_LENGTH,
   attachmentFilesError,
   formatBytes,
 } from '../utils/helpers'
@@ -45,6 +46,8 @@ export default function TicketForm({ onCreate, disabled }) {
   }
 
   const empty = title.trim() === '' || description.trim() === ''
+  // backend jaisa — trim ke baad 5 se chhota title bhejne ka faida nahi, 400 hi aata
+  const titleTooShort = title.trim() !== '' && title.trim().length < TICKET_TITLE_MIN_LENGTH
 
   return (
     <form className={form} onSubmit={handleSubmit}>
@@ -58,10 +61,15 @@ export default function TicketForm({ onCreate, disabled }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Masla ek line mein…"
-          maxLength={MAX_TITLE_LENGTH}
+          maxLength={TICKET_TITLE_MAX_LENGTH}
         />
-        <span className={cn(hintText, 'self-end', title.length >= MAX_TITLE_LENGTH - 20 ? 'text-error-text' : 'text-muted')}>
-          {title.length}/{MAX_TITLE_LENGTH}
+        <span className="flex justify-between gap-2">
+          <span className={cn(hintText, 'text-error-text')}>
+            {titleTooShort && `Kam se kam ${TICKET_TITLE_MIN_LENGTH} characters`}
+          </span>
+          <span className={cn(hintText, title.length >= TICKET_TITLE_MAX_LENGTH - 10 ? 'text-error-text' : 'text-muted')}>
+            {title.length}/{TICKET_TITLE_MAX_LENGTH}
+          </span>
         </span>
       </div>
 
@@ -78,7 +86,7 @@ export default function TicketForm({ onCreate, disabled }) {
           maxLength={MAX_DESCRIPTION_LENGTH}
         />
         <span
-          className={cn(hintText, 'self-end', description.length >= MAX_DESCRIPTION_LENGTH - 100 ? 'text-error-text' : 'text-muted')}
+          className={cn(hintText, 'self-end', description.length >= MAX_DESCRIPTION_LENGTH - 50 ? 'text-error-text' : 'text-muted')}
         >
           {description.length}/{MAX_DESCRIPTION_LENGTH}
         </span>
@@ -136,7 +144,7 @@ export default function TicketForm({ onCreate, disabled }) {
         )}
       </div>
 
-      <button type="submit" className={button()} disabled={disabled || empty || Boolean(filesError)}>
+      <button type="submit" className={button()} disabled={disabled || empty || titleTooShort || Boolean(filesError)}>
         Ticket bhejo
       </button>
     </form>

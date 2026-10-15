@@ -190,9 +190,11 @@ test("title ya description na ho → 400, aur Multer ki likhi file temp se mit j
   for (const [fields, message] of [
     [{ title: null }, "Title is required"],
     [{ title: "   " }, "Title is required"],
-    [{ title: "x".repeat(201) }, "Title must be at most 200 characters"],
+    [{ title: "abcd" }, "Title must be between 5 and 100 characters"],
+    [{ title: "  abcd  " }, "Title must be between 5 and 100 characters"],
+    [{ title: "x".repeat(101) }, "Title must be between 5 and 100 characters"],
     [{ description: null }, "Description is required"],
-    [{ description: "x".repeat(5001) }, "Description must be at most 5000 characters"]
+    [{ description: "x".repeat(1001) }, "Description must be at most 1000 characters"]
   ]) {
     const res = await createTicket({ ...fields, files: file });
     assert.equal(res.status, 400, JSON.stringify(fields).slice(0, 60));

@@ -30,18 +30,19 @@ const attachmentSchema = new mongoose.Schema({
 // support ticket — title, description aur 0–3 attachments
 const ticketSchema = new mongoose.Schema(
   {
-    // task ke title jaisi had — validation middleware bhi yahi lagata hai
+    // validators/ticketValidators.js bhi yahi had lagata hai (trim ke baad 5–100)
     title: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 200
+      minlength: 5,
+      maxlength: 100
     },
     description: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 5000
+      maxlength: 1000
     },
     // ticket kis user ka hai — hamesha req.user.id se, body se kabhi nahi
     // index: list aur ownership wali har query { user } se hoti hai

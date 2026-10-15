@@ -76,8 +76,10 @@ export const ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'appli
 export const MAX_ATTACHMENTS = 3
 export const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
 export const MAX_TOTAL_ATTACHMENT_BYTES = 5 * 1024 * 1024
-// ticket description ki had — backend validateCreateTicket jaisi (trim ke baad 5000)
-export const MAX_DESCRIPTION_LENGTH = 5000
+// ticket title/description ki had — backend validators/ticketValidators.js jaisi (trim ke baad)
+export const TICKET_TITLE_MIN_LENGTH = 5
+export const TICKET_TITLE_MAX_LENGTH = 100
+export const MAX_DESCRIPTION_LENGTH = 1000
 
 export function attachmentFilesError(files) {
   if (files.length > MAX_ATTACHMENTS) return `You can attach at most ${MAX_ATTACHMENTS} files.`
