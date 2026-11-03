@@ -1,4 +1,4 @@
-// ek ticket ka card — title, kab bheja, description (lambi ho to "aur padhein") aur attachments (click = download)
+// ek ticket ka card — title, kab bheja, description (lambi ho to "aur padhein") aur attachments (download icon se)
 import { useState } from 'react'
 import { ClockIcon, DownloadIcon, FileIcon, ImageIcon, PaperclipIcon } from '../ui/icons'
 import { cn, focusRing, panel } from '../ui/styles'
@@ -51,23 +51,28 @@ export default function TicketItem({ ticket, onDownload, disabled }) {
             {ticket.attachments.map((attachment) => {
               const Icon = attachment.mimetype === 'application/pdf' ? FileIcon : ImageIcon
               return (
-                <li key={attachment._id} className="min-w-0 max-w-full">
+                <li
+                  key={attachment._id}
+                  className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-border bg-subtle py-1.5 pr-1.5 pl-2 text-sm"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-card text-primary-text">
+                    <Icon className="size-4" />
+                  </span>
+                  <span className="min-w-0 truncate">{attachment.originalName}</span>
+                  <span className="shrink-0 text-xs text-muted">{formatBytes(attachment.size)}</span>
+                  {/* download sirf icon wale button se — poora chip click karne par nahi */}
                   <button
                     type="button"
                     className={cn(
-                      'group/file flex max-w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-subtle py-1.5 pr-2.5 pl-2 text-sm transition hover:border-primary disabled:cursor-not-allowed disabled:opacity-50',
+                      'flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition hover:bg-card hover:text-primary-text disabled:cursor-not-allowed disabled:opacity-50',
                       focusRing,
                     )}
                     onClick={() => onDownload(ticket, attachment)}
                     disabled={disabled}
+                    aria-label={`Download ${attachment.originalName}`}
                     title={`Download ${attachment.originalName}`}
                   >
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-card text-primary-text">
-                      <Icon className="size-4" />
-                    </span>
-                    <span className="min-w-0 truncate">{attachment.originalName}</span>
-                    <span className="shrink-0 text-xs text-muted">{formatBytes(attachment.size)}</span>
-                    <DownloadIcon className="size-4 shrink-0 text-muted transition group-hover/file:text-primary-text" />
+                    <DownloadIcon className="size-4" />
                   </button>
                 </li>
               )
