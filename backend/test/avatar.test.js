@@ -12,14 +12,20 @@ const ctx = setupTestApp("avatar");
 const { mongoose, config } = ctx;
 
 const MAX_BYTES = 2 * 1024 * 1024;
-const FILENAME_PATTERN = /^\/uploads\/avatars\/([0-9a-f]{24})-(\d+)\.(jpg|png|webp)$/;
+// disk ka naam (File.storedName) — response mein sirf fileId aata hai
+const FILENAME_PATTERN = /^([0-9a-f]{24})-(\d+)\.(jpg|png|webp)$/;
+const FILE_ID_PATTERN = /^[0-9a-f]{24}$/;
 
 let token;
 let userId;
 
 // is test user ki files jo abhi disk par hain
 const userFiles = () => fs.readdirSync(config.avatarUploadDir).filter((name) => name.startsWith(`${userId}-`));
-const dbAvatar = async () => (await mongoose.model("User").findById(userId).lean()).avatar;
+// DB ka avatar (fileId) string mein — null ho to null
+const dbAvatar = async () => (await mongoose.model("User").findById(userId).lean()).avatar?.toString() ?? null;
+// fileId ka File record — disk ka naam isi se
+const fileRecord = (fileId) => mongoose.model("File").findById(fileId).lean();
+const storedNameOf = async (fileId) => (await fileRecord(fileId)).storedName;
 
 // multipart request — ctx.request sirf JSON bhejta hai
 // parts: [{ field, type, name, bytes, content }] — khaali array = form mein koi file nahi
@@ -52,6 +58,7 @@ afterEach(async () => {
     fs.unlinkSync(path.join(config.avatarUploadDir, name));
   }
   await mongoose.model("User").updateOne({ _id: userId }, { $set: { avatar: null } });
+  await mongoose.model("File").deleteMany({ owner: userId });
 });
 
 after(async () => {
@@ -68,14 +75,22 @@ for (const [type, name, ext] of [
     assert.equal(res.status, 200);
     assert.equal(res.json.message, "Avatar uploaded successfully");
 
-    const match = FILENAME_PATTERN.exec(res.json.avatar);
-    assert.ok(match, res.json.avatar);
+    // response mein fileId — disk ka naam/path kabhi nahi
+    assert.match(res.json.avatar, FILE_ID_PATTERN);
+    const record = await fileRecord(res.json.avatar);
+    assert.equal(record.owner.toString(), userId);
+    assert.equal(record.kind, "avatar");
+    assert.equal(record.mimetype, type);
+    assert.equal(record.originalName, name, "asli naam sirf record mein (download ke naam ke liye)");
+
+    const match = FILENAME_PATTERN.exec(record.storedName);
+    assert.ok(match, record.storedName);
     assert.equal(match[1], userId);
     assert.equal(match[3], ext, "extension mimetype se, file ke naam se nahi");
-    assert.ok(!res.json.avatar.includes(path.parse(name).name), "user ka diya hua naam use nahi hota");
+    assert.ok(!record.storedName.includes(path.parse(name).name), "user ka diya hua naam disk par use nahi hota");
 
     assert.equal(await dbAvatar(), res.json.avatar);
-    assert.deepEqual(userFiles(), [path.basename(res.json.avatar)]);
+    assert.deepEqual(userFiles(), [record.storedName]);
   });
 }
 
@@ -113,27 +128,29 @@ test("asli WebP ko image/png bata kar bheja → 415 (mime mismatch), disk aur DB
 test("pehle se avatar ho aur nakli file aaye → 415; purana avatar DB aur disk dono mein salamat", async () => {
   const first = await upload([{ type: "image/jpeg", name: "first.jpg" }]);
   assert.equal(first.status, 200);
-  const firstFile = path.basename(first.json.avatar);
+  const firstFile = await storedNameOf(first.json.avatar);
 
   const res = await upload([{ type: "image/png", content: Buffer.alloc(1024, 1) }]);
   assert.equal(res.status, 415);
   assert.equal(await dbAvatar(), first.json.avatar, "DB purane par hi");
   assert.deepEqual(userFiles(), [firstFile], "sirf purani file — nakli wali mit gayi, purani nahi mitti");
+  assert.equal(await mongoose.model("File").countDocuments({ owner: userId }), 1, "nakli ka record bana hi nahi");
 });
 
 test("pehla avatar badla → DB naye par, purani file disk se mit gayi, nayi maujood", async () => {
   const first = await upload([{ type: "image/jpeg", name: "first.jpg" }]);
   assert.equal(first.status, 200);
-  const firstFile = path.basename(first.json.avatar);
+  const firstFile = await storedNameOf(first.json.avatar);
   assert.deepEqual(userFiles(), [firstFile]);
 
   const second = await upload([{ type: "image/png", name: "second.png" }]);
   assert.equal(second.status, 200);
-  const secondFile = path.basename(second.json.avatar);
+  const secondFile = await storedNameOf(second.json.avatar);
   assert.notEqual(secondFile, firstFile);
 
   assert.equal(await dbAvatar(), second.json.avatar);
   assert.deepEqual(userFiles(), [secondFile], "sirf naya — purana mit gaya");
+  assert.equal(await fileRecord(first.json.avatar), null, "purana File record bhi mit gaya");
 });
 
 test("file nahi bheji → 400", async () => {
@@ -176,7 +193,7 @@ test("2 MB se 1 byte zyada → 413, adhoori file bhi disk par nahi", async () =>
 test("theek 2 MB → 200 (had ke andar)", async () => {
   const res = await upload([{ bytes: MAX_BYTES }]);
   assert.equal(res.status, 200);
-  assert.equal(fs.statSync(path.join(config.avatarUploadDir, path.basename(res.json.avatar))).size, MAX_BYTES);
+  assert.equal(fs.statSync(path.join(config.avatarUploadDir, await storedNameOf(res.json.avatar))).size, MAX_BYTES);
 });
 
 test("do files ek request mein → 400, disk par kuch nahi", async () => {
@@ -193,22 +210,20 @@ test("token nahi → 401, Multer chala hi nahi (disk par kuch nahi)", async () =
   assert.deepEqual(userFiles(), []);
 });
 
-test("upload hui tasveer GET /uploads/avatars/<file> par milti hai — sahi type + nosniff; API key zaroori; folder/bahar ki file nahi", async () => {
+// express.static hata diya — disk ka naam pata ho tab bhi file seedhi nahi milti; sirf GET /files/:fileId (owner check ke saath)
+test("upload hui tasveer /uploads/avatars/<file> par nahi milti — sirf GET /files/<avatar> se (inline, sahi type)", async () => {
   const res = await upload([{ type: "image/webp", name: "me.webp", bytes: 300 }]);
   assert.equal(res.status, 200);
+  const storedName = await storedNameOf(res.json.avatar);
 
-  const get = (route, apiKey = config.apiKey) => fetch(ctx.baseUrl + route, { headers: apiKey ? { "x-api-key": apiKey } : {} });
+  const get = (route) => fetch(ctx.baseUrl + route, { headers: { "x-api-key": config.apiKey, authorization: `Bearer ${token}` } });
 
-  const served = await get(res.json.avatar);
+  assert.equal((await get(`/uploads/avatars/${storedName}`)).status, 404, "static serving band");
+  assert.equal((await get("/uploads/avatars/")).status, 404);
+
+  const served = await get(`/files/${res.json.avatar}`);
   assert.equal(served.status, 200);
   assert.equal(served.headers.get("content-type"), "image/webp");
-  assert.equal(served.headers.get("x-content-type-options"), "nosniff");
+  assert.match(served.headers.get("content-disposition"), /^inline;/);
   assert.equal((await served.arrayBuffer()).byteLength, 300);
-
-  assert.equal((await get(res.json.avatar, null)).status, 401, "API key ke bina nahi");
-  assert.equal((await get("/uploads/avatars/")).status, 404, "folder ki list nahi");
-  assert.equal((await get("/uploads/avatars/nope.png")).status, 404);
-  // folder se bahar (.env, source) kabhi nahi
-  assert.equal((await get("/uploads/avatars/..%2f..%2f.env")).status, 404);
-  assert.equal((await get("/uploads/avatars/../../package.json")).status, 404);
 });

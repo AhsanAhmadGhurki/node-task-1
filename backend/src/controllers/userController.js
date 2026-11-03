@@ -11,12 +11,9 @@ async function uploadAvatar(req, res, next) {
       throw new BadRequestError("Avatar file is required");
     }
 
-    // mimetype — client ka declared type; service asli bytes se milayegi
-    const avatar = await userService.setAvatar(
-      req.user.id,
-      req.file.filename,
-      req.file.mimetype
-    );
+    // req.file.mimetype — client ka declared type; service asli bytes se milayegi
+    // avatar = naya fileId — tasveer GET /files/<avatar> se
+    const avatar = await userService.setAvatar(req.user.id, req.file);
 
     res.status(200).json({ message: "Avatar uploaded successfully", avatar });
   } catch (err) {

@@ -1,4 +1,4 @@
-// support tickets ke tests — POST /tickets (multipart: title, description, 0–3 files "attachments"), list, get, download
+// support tickets ke tests — POST /tickets (multipart: title, description, 0–3 files "attachments"), list, get
 // chalao: npm test (backend/ se) — alag test DB (test/helpers.js)
 // files asli folders (uploads/tmp/tickets, uploads/tickets) mein jaati hain — har test ke baad sirf ISI file ke test users
 // ki files mitate hain (naam "<userId>-<uuid>.<ext>"), taake dev server ki kisi aur ki file na chhede
@@ -29,6 +29,7 @@ async function assertNothingLeft() {
   assert.deepEqual(tmpFiles(), [], "temp folder mein kuch nahi");
   assert.deepEqual(savedFiles(), [], "final folder mein kuch nahi");
   assert.equal(await ticketCount(), 0, "DB mein koi ticket nahi");
+  assert.equal(await mongoose.model("File").countDocuments({}), 0, "DB mein koi File record nahi");
 }
 
 // multipart request — text fields pehle, phir files
@@ -66,6 +67,7 @@ afterEach(async () => {
     }
   }
   await mongoose.model("Ticket").deleteMany({});
+  await mongoose.model("File").deleteMany({});
 });
 
 after(async () => {
@@ -95,6 +97,12 @@ test("3 valid files (jpg + png + pdf), 5 MB se kam → 201; files final folder m
   const saved = savedFiles();
   assert.equal(saved.length, 3);
   assert.deepEqual(saved.map((name) => path.extname(name)).sort(), [".jpg", ".pdf", ".png"], "extension type se, naam se nahi");
+
+  // har attachment ka File record — _id wahi jo ticket mein (fileId), owner aur ticket set, storedName disk wala
+  const records = await mongoose.model("File").find({ ticket: ticket._id }).lean();
+  assert.deepEqual(records.map((f) => f._id.toString()).sort(), ticket.attachments.map((a) => a._id).sort());
+  assert.ok(records.every((f) => f.owner.toString() === owner.id && f.kind === "ticket-attachment"));
+  assert.deepEqual(records.map((f) => f.storedName).sort(), [...saved].sort());
 });
 
 test("bina file ke ticket → 201, attachments khaali", async () => {
@@ -237,34 +245,9 @@ test("list aur get sirf apne tickets — doosre user ka ticket 404, galat id 400
   assert.equal((await get("/tickets/abc")).status, 400);
 });
 
-test("download — wahi bytes, asli naam ke saath attachment, nosniff; doosre user ko 404", async () => {
-  const content = fileBytes("application/pdf", 3000);
-  const { ticket } = (await createTicket({ files: [{ type: "application/pdf", name: "bill.pdf", content }] })).json;
-  const route = `/tickets/${ticket._id}/attachments/${ticket.attachments[0]._id}`;
-
-  const res = await get(route);
-  assert.equal(res.status, 200);
-  assert.equal(res.headers.get("content-type"), "application/pdf");
-  assert.match(res.headers.get("content-disposition"), /^attachment; filename="bill\.pdf"/);
-  assert.equal(res.headers.get("x-content-type-options"), "nosniff");
-  assert.ok(Buffer.from(await res.arrayBuffer()).equals(content));
-
-  const stolen = await get(route, other);
-  assert.equal(stolen.status, 404);
-  assert.equal((await stolen.json()).message, "Ticket not found");
-
-  const unknown = await get(`/tickets/${ticket._id}/attachments/${new mongoose.Types.ObjectId()}`);
-  assert.equal(unknown.status, 404);
-  assert.equal((await unknown.json()).message, "Attachment not found");
-});
-
-test("DB mein attachment hai lekin file disk par nahi → 404, response mein server ka path nahi", async () => {
+// attachment ka download ab GET /files/:fileId se — wahan ke tests (200/401/403/404, stream) test/files.test.js mein
+test("purana download route (/tickets/:id/attachments/:attachmentId) ab nahi → 404", async () => {
   const { ticket } = (await createTicket({ files: [{ type: "image/png" }] })).json;
-  for (const name of savedFiles()) fs.unlinkSync(path.join(config.ticketAttachmentDir, name));
-
   const res = await get(`/tickets/${ticket._id}/attachments/${ticket.attachments[0]._id}`);
-  const text = await res.text();
   assert.equal(res.status, 404);
-  assert.deepEqual(JSON.parse(text), { message: "Attachment not found" });
-  assert.ok(!text.includes(config.ticketAttachmentDir) && !text.includes("ENOENT"), text);
 });

@@ -98,7 +98,7 @@ function setupTestApp(name, { realLimiters = false } = {}) {
     await mongoose.connection.db.dropDatabase();
     // createIndexes, init() nahi — init() ka promise cache hota hai: connect par chala auto-index drop se PEHLE
     // poora ho jaye to drop use mita deta aur init() dobara nahi banata (unique email index ke baghair tests chalte)
-    await Promise.all(["User", "Otp", "RefreshToken", "Task", "Ticket"].map((model) => mongoose.model(model).createIndexes()));
+    await Promise.all(["User", "Otp", "RefreshToken", "Task", "Ticket", "File"].map((model) => mongoose.model(model).createIndexes()));
     ctx.server = app.listen(0);
     await new Promise((resolve) => ctx.server.once("listening", resolve));
     ctx.baseUrl = `http://127.0.0.1:${ctx.server.address().port}`;

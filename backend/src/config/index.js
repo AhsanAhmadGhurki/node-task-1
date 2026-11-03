@@ -16,6 +16,8 @@ module.exports = {
   // email code kitni der chalta hai — authService (DB expiry) aur email ka text dono yahin se,
   // taake badalne par email galat waqt na bataye
   otpTtlMs: 5 * 60 * 1000,
+  // signed file link (GET /files/:fileId?expires=&sig=) kitni der chalta hai — bina token wala link, is liye chhota
+  signedUrlTtlSeconds: 10 * 60,
   // avatars ka folder (backend/uploads/avatars) — upload.js yahan save karta hai, userService yahin se mitata hai
   avatarUploadDir: path.join(__dirname, "../../uploads/avatars"),
   // ticket attachments pehle yahan aati hain (Multer) — check se pehle; ye folder kabhi serve nahi hota

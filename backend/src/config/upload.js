@@ -46,6 +46,8 @@ const upload = multer({
     // ek request mein ek hi file
     files: 1
   },
+  // originalname utf8 mein — ab File.originalName mein jaata hai (download ka naam); warna Urdu naam latin1 mein bigadte
+  defParamCharset: "utf8",
   // jpeg/png/webp ke ilawa (html, svg, pdf…) — disk par likhne se PEHLE reject
   // apni error class — errorHandler ka statusCode wala raasta 400 + yahi message bhejta hai
   // (MulterError "LIMIT_UNEXPECTED_FILE" nahi — uska message "galat field" kehta, jo yahan jhoot hota)

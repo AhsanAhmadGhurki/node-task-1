@@ -24,28 +24,4 @@ export async function createTicket({ title, description, files }, onProgress) {
   return data.ticket
 }
 
-// attachment download — <a href> Authorization header nahi bhej sakta, is liye axios se blob lo aur browser ko do
-export async function downloadAttachment(ticketId, attachment) {
-  try {
-    const { data } = await api.get(`/tickets/${ticketId}/attachments/${attachment._id}`, { responseType: 'blob' })
-    const url = URL.createObjectURL(data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = attachment.originalName
-    document.body.append(a)
-    a.click()
-    a.remove()
-    // foran revoke karne par kuch browsers (Firefox) download shuru hi nahi karte
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-  } catch (error) {
-    // responseType "blob" — error ka { message } bhi Blob mein aata hai; toAlert ke liye JSON bana do
-    if (error.response?.data instanceof Blob) {
-      try {
-        error.response.data = JSON.parse(await error.response.data.text())
-      } catch {
-        error.response.data = {}
-      }
-    }
-    throw error
-  }
-}
+// attachment ka preview/download — api/fileApi.js (attachment._id hi fileId hai)

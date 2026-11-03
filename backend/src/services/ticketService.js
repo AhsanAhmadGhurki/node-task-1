@@ -4,6 +4,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 
 const Ticket = require("../models/Ticket");
+const File = require("../models/File");
 const NotFoundError = require("../utils/NotFoundError");
 const PayloadTooLargeError = require("../utils/PayloadTooLargeError");
 const { assertFileSignature } = require("../utils/fileSignature");
@@ -66,12 +67,14 @@ async function createTicket(userId, { title, description }, files = []) {
     );
   }
 
-  // File move karne se pehle ticket ID generate karo
+  // File move karne se pehle ticket ID generate karo — File records isi ticket ko point karte hain
   const ticketId = new mongoose.Types.ObjectId();
   const movedFiles = [];
+  let filesCreated = false;
 
   try {
     const attachments = [];
+    const fileRecords = [];
 
     for (const file of files) {
       // Stored filename server-generated hai; original filename sirf display ke liye hai
@@ -84,12 +87,31 @@ async function createTicket(userId, { title, description }, files = []) {
       await fs.promises.rename(file.path, destination);
       movedFiles.push(destination);
 
-      attachments.push({
+      // ek hi _id dono jagah — ticket ke JSON wala attachment._id hi GET /files/:fileId ka fileId
+      const fileId = new mongoose.Types.ObjectId();
+      fileRecords.push({
+        _id: fileId,
+        owner: userId,
+        kind: "ticket-attachment",
+        ticket: ticketId,
         storedName,
         originalName: file.originalname,
         mimetype: file.mimetype,
         size: file.size
       });
+      attachments.push({
+        _id: fileId,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size
+      });
+    }
+
+    // pehle File records (owner yahin), phir ticket — ticket fail ho to neeche dono mitte hain
+    // ordered insertMany: koi ek invalid ho (jaise 255 se lamba naam) to error, aur jo likhe gaye woh catch mein mitte
+    if (fileRecords.length > 0) {
+      filesCreated = true;
+      await File.insertMany(fileRecords);
     }
 
     // Database record tab create karo jab tamam files move ho chuki hon
@@ -101,6 +123,13 @@ async function createTicket(userId, { title, description }, files = []) {
       attachments
     });
   } catch (error) {
+    // File records bane hon to woh bhi — bina ticket ke file record kisi kaam ka nahi
+    if (filesCreated) {
+      await File.deleteMany({ ticket: ticketId }).catch((cleanupError) => {
+        console.error("Ticket file records cleanup failed:", cleanupError.name);
+      });
+    }
+
     // DB ya file move fail ho to pehle se move ki hui files hatao
     await Promise.all(
       movedFiles.map(async (filePath) => {
@@ -136,33 +165,11 @@ async function getTicket(id, userId) {
   return ticket;
 }
 
-// download ke liye file ka path — ticket apna ho aur attachment usi ticket ki ho, warna 404
-async function getAttachmentPath(ticketId, attachmentId, userId) {
-  // Pehle ownership verify karo; doosre user ke ticket ki attachment expose nahi honi chahiye
-  // (getTicket wahi check — owner match na ho to "Ticket not found" 404)
-  const ticket = await getTicket(ticketId, userId);
-
-  // Sirf isi ticket ki attachment ID accept karo
-  const attachment = ticket.attachments.id(attachmentId);
-
-  if (!attachment) {
-    throw new NotFoundError("Attachment not found");
-  }
-
-  // Stored filename server-generated hai; basename se directory traversal roko
-  const storedName = path.basename(attachment.storedName);
-  const filePath = path.join(config.ticketAttachmentDir, storedName);
-
-  return {
-    filePath,
-    originalName: attachment.originalName
-  };
-}
+// attachment ka download yahan nahi — fileService.getFileForUser (GET /files/:fileId)
 
 module.exports = {
   createTicket,
   discardFiles,
   listTickets,
-  getTicket,
-  getAttachmentPath
+  getTicket
 };

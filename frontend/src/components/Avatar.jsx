@@ -1,6 +1,6 @@
-// gol tasveer — sirf dikhati hai (click/upload nahi); tasveer na ho to naam (ya email) ka pehla harf
-import { useState } from 'react'
+// gol tasveer — sirf dikhati hai (click/upload nahi); tasveer na ho (ya load na ho) to naam (ya email) ka pehla harf
 import { useAuth } from '../hooks/useAuth'
+import { useFileUrl } from '../hooks/useFileUrl'
 import { cn } from '../ui/styles'
 
 // ring bhi size ke saath — base mein ek ring aur upar se doosri jodo to Tailwind mein tay nahi kaun jeete
@@ -11,12 +11,8 @@ const sizes = {
 
 export default function Avatar({ size = 'sm', className }) {
   const { user } = useAuth()
-  // jo src load na ho saka (file disk se mit gayi) — us par harf dikhao, toota icon nahi
-  const [failedSrc, setFailedSrc] = useState(null)
-
-  // backend "/uploads/avatars/..." deta hai — browser "/api/..." se maangta hai (Vite proxy API key lagata hai)
-  const src = user.avatar ? `/api${user.avatar}` : null
-  const showImage = src && src !== failedSrc
+  // user.avatar = fileId — tasveer GET /files/:fileId se token ke saath (blob URL); jab tak na aaye, harf
+  const { url } = useFileUrl(user.avatar)
   const letter = (user.name || user.email)[0].toUpperCase()
 
   return (
@@ -27,7 +23,7 @@ export default function Avatar({ size = 'sm', className }) {
         className,
       )}
     >
-      {showImage ? <img src={src} alt="" className="size-full object-cover" onError={() => setFailedSrc(src)} /> : letter}
+      {url ? <img src={url} alt="" className="size-full object-cover" /> : letter}
     </span>
   )
 }

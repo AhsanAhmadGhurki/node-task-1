@@ -22,10 +22,11 @@ const userSchema = new mongoose.Schema(
       // naya user email ka code daalne tak unverified rehta hai (code models/Otp.js mein)
       default: false
     },
-    // profile picture ka path (jaise "/uploads/avatars/<id>-<time>.jpg") — file khud disk par, DB mein sirf path
+    // profile picture ka fileId (models/File.js) — tasveer GET /files/:fileId se, owner check ke saath
     // null = abhi koi picture nahi
     avatar: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "File",
       default: null
     },
     // profile (PATCH /user/profile) — validators/userValidators.js bhi yahi rules lagata hai

@@ -1,6 +1,7 @@
 // /tickets — support ticket bhejo (0–3 attachments) aur apne purane tickets dekho / attachments download karo
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createTicket, downloadAttachment, getTickets } from '../api/ticketApi'
+import { downloadFile } from '../api/fileApi'
+import { createTicket, getTickets } from '../api/ticketApi'
 import EmptyState from '../components/EmptyState'
 import Loader from '../components/Loader'
 import TicketForm from '../components/TicketForm'
@@ -70,8 +71,9 @@ export default function Tickets() {
     return true
   }
 
-  async function handleDownload(ticket, attachment) {
-    await run(() => downloadAttachment(ticket._id, attachment))
+  // attachment._id = fileId — GET /files/:fileId?download=1 (403/404 ho to Toast)
+  async function handleDownload(attachment) {
+    await run(() => downloadFile(attachment._id, attachment.originalName))
   }
 
   return (

@@ -5,9 +5,7 @@ const { assertFileSignature } = require("../utils/fileSignature");
 const User = require("../models/User");
 const config = require("../config");
 const NotFoundError = require("../utils/NotFoundError");
-
-// DB mein yahi path jaata hai — frontend isi se picture maangega (jab /uploads serve hoga)
-const AVATAR_URL_PREFIX = "/uploads/avatars/";
+const fileService = require("./fileService");
 
 // avatar sirf ye tasveerein — upload.js ke allowedTypes jaisi hi list
 const ALLOWED_AVATAR_MIMES = [
@@ -26,17 +24,19 @@ async function validateAvatarFile(filePath, declaredMime) {
   );
 }
 
-// avatar ki file mitao — sirf naam (basename) lo aur hamesha avatars folder ke andar dhoondo,
-// taake DB ki koi galat value ("../../.env" jaisi) folder ke bahar ki file na mita sake
+// avatar ki file mitao (abhi File record bana hi nahi) — sirf naam (basename) lo aur hamesha avatars folder
+// ke andar dhoondo, taake koi galat value ("../../.env" jaisi) folder ke bahar ki file na mita sake
 // file pehle hi na ho to bhi theek — mitana hi to tha
-async function removeAvatarFile(avatar) {
-  await fs.unlink(path.join(config.avatarUploadDir, path.basename(avatar))).catch(() => {});
+async function removeAvatarFile(filename) {
+  await fs.unlink(path.join(config.avatarUploadDir, path.basename(filename))).catch(() => {});
 }
 
-// naya avatar lagao, purani file mitao — naya path lautata hai
-// filename — Multer ki di hui (upload.js: <userId>-<time><ext>), file disk par aa chuki hai
-// mimetype — client ka declared type (extension isi se bani), asli bytes se milana hai
-async function setAvatar(userId, filename, mimetype) {
+// naya avatar lagao, purana (record + file) mitao — naya fileId lautata hai
+// file — Multer ka req.file (upload.js: <userId>-<time><ext>), disk par aa chuki hai
+// file.mimetype — client ka declared type (extension isi se bani), asli bytes se milana hai
+async function setAvatar(userId, file) {
+  const { filename, mimetype, originalname, size } = file;
+
   // DB chhoone se pehle asli bytes check karo — galat file disk par na rahe, na DB mein jaye
   const filePath = path.join(config.avatarUploadDir, filename);
 
@@ -47,35 +47,49 @@ async function setAvatar(userId, filename, mimetype) {
     throw err;
   }
 
-  const avatar = AVATAR_URL_PREFIX + filename;
+  // pehle File record (owner = yahi user) — iske bina /files/:fileId isay pehchanta hi nahi
+  let record;
+  try {
+    record = await fileService.createFile({
+      owner: userId,
+      kind: "avatar",
+      storedName: filename,
+      originalName: originalname,
+      mimetype,
+      size
+    });
+  } catch (err) {
+    await removeAvatarFile(filename);
+    throw err;
+  }
 
-  // ek hi query mein naya path likho aur purana wala lo — read (findById) → save() mein do uploads ek saath
+  // ek hi query mein naya fileId likho aur purana wala lo — read (findById) → save() mein do uploads ek saath
   // aayein to dono ek hi "purana" dekhte aur ek file hamesha ke liye reh jaati
   let previous;
   try {
     previous = await User.findByIdAndUpdate(
       userId,
-      { $set: { avatar } },
+      { $set: { avatar: record._id } },
       { returnDocument: "before", projection: { avatar: 1 } }
     );
   } catch (err) {
-    // DB fail — nayi file kisi kaam ki nahi, disk par na pade rahe
-    await removeAvatarFile(filename);
+    // DB fail — naya record aur file kisi kaam ke nahi
+    await fileService.deleteFile(record._id);
     throw err;
   }
 
   // token sahi tha lekin user beech mein delete ho gaya (authMiddleware ke baad)
   if (!previous) {
-    await removeAvatarFile(filename);
+    await fileService.deleteFile(record._id);
     throw new NotFoundError("User not found");
   }
 
-  // DB mein naya path aa gaya — purani file ab bekaar
+  // DB mein naya fileId aa gaya — purana record aur file ab bekaar
   if (previous.avatar) {
-    await removeAvatarFile(previous.avatar);
+    await fileService.deleteFile(previous.avatar);
   }
 
-  return avatar;
+  return record._id.toString();
 }
 
 // apni profile — DB se taaza (session mein purani ho sakti hai, ya login ke waqt name tha hi nahi)

@@ -1,14 +1,9 @@
 const mongoose = require("mongoose");
 
-// ek attachment ki jaankari — file khud disk par (uploads/tickets), DB mein sirf uska hisaab
-// har attachment ka apna _id banta hai — download route (/tickets/:id/attachments/:attachmentId) isi se file dhoondta hai
+// ek attachment ki jaankari — sirf dikhane ke liye (naam, type, size)
+// _id = File._id (models/File.js) — download GET /files/:fileId se; disk ka naam aur owner File mein, yahan nahi
 const attachmentSchema = new mongoose.Schema({
-  // disk par server ka diya hua naam (<userId>-<uuid><ext>) — andar ki baat, response mein kabhi nahi (toJSON neeche)
-  storedName: {
-    type: String,
-    required: true
-  },
-  // user ka diya hua naam — sirf dikhane aur download ke naam ke liye, disk ke path mein kabhi nahi
+  // user ka diya hua naam — sirf dikhane ke liye, disk ke path mein kabhi nahi
   // 255 — aam filesystem ki had; is se lamba naam DB/response bhar deta
   originalName: {
     type: String,
@@ -60,7 +55,8 @@ const ticketSchema = new mongoose.Schema(
   {
     // createdAt aur updatedAt khud ban jaate hain
     timestamps: true,
-    // response mein storedName nahi — client ko disk ka naam pata hone ki zaroorat nahi, download _id se hota hai
+    // response mein storedName nahi — naye tickets mein hota hi nahi (File mein hai), lekin migration se pehle ke
+    // purane documents mein reh gaya ho to bhi bahar na jaye
     toJSON: {
       transform: (doc, ret) => {
         ret.attachments = (ret.attachments || []).map((attachment) => {

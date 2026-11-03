@@ -1,11 +1,41 @@
 // ek ticket ka card — title, kab bheja, description (lambi ho to "aur padhein") aur attachments (download icon se)
 import { useState } from 'react'
+import { useFileUrl } from '../hooks/useFileUrl'
 import { ClockIcon, DownloadIcon, FileIcon, ImageIcon, PaperclipIcon } from '../ui/icons'
 import { cn, focusRing, panel } from '../ui/styles'
 import { formatBytes, timeAgo } from '../utils/helpers'
 
 // is se lambi description pehle 3 line tak — baaki "aur padhein" par
 const LONG_DESCRIPTION = 180
+
+// tasveer wali attachment ka chhota thumbnail — click par poori tasveer naye tab mein
+// file GET /files/:fileId se token ke saath (blob URL); jab tak na aaye ya fail ho, tasveer ka icon
+// PDF ka preview nahi — backend bhi PDF hamesha download karwata hai (PDF ke andar script/links)
+function ImagePreview({ attachment }) {
+  const { url } = useFileUrl(attachment._id)
+  const box = 'flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-card text-primary-text'
+
+  if (!url) {
+    return (
+      <span className={box}>
+        <ImageIcon className="size-4" />
+      </span>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={cn(box, 'cursor-pointer', focusRing)}
+      // blob URL isi tab ka hai — naya tab bhi wahi tasveer dikhata hai, server se dobara nahi maangta
+      onClick={() => window.open(url, '_blank', 'noopener')}
+      aria-label={`Preview ${attachment.originalName}`}
+      title={`Preview ${attachment.originalName}`}
+    >
+      <img src={url} alt="" className="size-full object-cover" />
+    </button>
+  )
+}
 
 export default function TicketItem({ ticket, onDownload, disabled }) {
   const [expanded, setExpanded] = useState(false)
@@ -49,15 +79,18 @@ export default function TicketItem({ ticket, onDownload, disabled }) {
           </p>
           <ul className="flex flex-wrap gap-2">
             {ticket.attachments.map((attachment) => {
-              const Icon = attachment.mimetype === 'application/pdf' ? FileIcon : ImageIcon
               return (
                 <li
                   key={attachment._id}
                   className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-border bg-subtle py-1.5 pr-1.5 pl-2 text-sm"
                 >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-card text-primary-text">
-                    <Icon className="size-4" />
-                  </span>
+                  {attachment.mimetype === 'application/pdf' ? (
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-card text-primary-text">
+                      <FileIcon className="size-4" />
+                    </span>
+                  ) : (
+                    <ImagePreview attachment={attachment} />
+                  )}
                   <span className="min-w-0 truncate">{attachment.originalName}</span>
                   <span className="shrink-0 text-xs text-muted">{formatBytes(attachment.size)}</span>
                   {/* download sirf icon wale button se — poora chip click karne par nahi */}
@@ -67,7 +100,7 @@ export default function TicketItem({ ticket, onDownload, disabled }) {
                       'flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition hover:bg-card hover:text-primary-text disabled:cursor-not-allowed disabled:opacity-50',
                       focusRing,
                     )}
-                    onClick={() => onDownload(ticket, attachment)}
+                    onClick={() => onDownload(attachment)}
                     disabled={disabled}
                     aria-label={`Download ${attachment.originalName}`}
                     title={`Download ${attachment.originalName}`}
