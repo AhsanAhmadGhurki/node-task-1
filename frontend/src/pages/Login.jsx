@@ -85,14 +85,14 @@ export default function Login() {
           />
         </div>
         <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" />
-        <button type="submit" className={cn(button({ size: 'lg' }), 'mt-2 w-full')} disabled={loading}>
+        <button type="submit" className={cn(button(), 'mt-2 w-full')} disabled={loading}>
           {loading ? 'Please wait…' : 'Login'}
         </button>
       </form>
 
       {/* login form se alag dikhe — upar line */}
       {verifyCreds && (
-        <div className="mt-8 border-t border-border pt-6">
+        <div className="mt-6 border-t border-border pt-6">
           <VerifyEmail
             key={verifyCreds.email}
             email={verifyCreds.email}

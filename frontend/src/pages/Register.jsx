@@ -75,7 +75,7 @@ export default function Register() {
         heading="Email verify karein"
         description="Account banane ka aakhri qadam."
         footer={
-          <button type="button" className={button({ variant: 'ghost', size: 'sm', weight: 'medium' })} onClick={startOver}>
+          <button type="button" className={button({ variant: 'ghost', size: 'sm' })} onClick={startOver}>
             <ArrowLeftIcon />
             Galat email? Wapas register par
           </button>
@@ -128,13 +128,14 @@ export default function Register() {
         </div>
         {/* backend ke rules — likhte waqt hi har rule ka check, taake 400 kam aaye */}
         <PasswordInput value={password} onChange={setPassword} autoComplete="new-password">
-          <ul className="grid gap-x-3 gap-y-1.5 sm:grid-cols-2">
+          {/* ek column — har rule apni line par, aankh upar se neeche padhti hai */}
+          <ul className="mt-1 flex flex-col gap-1">
             {passwordChecks(password).map(([rule, ok]) => (
               <li key={rule} className={cn('flex items-center gap-1.5', ok ? 'text-success-text' : 'text-muted')}>
                 <span
                   className={cn(
                     'flex size-3.5 shrink-0 items-center justify-center rounded-full',
-                    ok ? 'bg-success-text text-card' : 'border border-border',
+                    ok ? 'bg-success-text text-card' : 'border border-input',
                   )}
                 >
                   {ok && <CheckIcon className="size-2.5" strokeWidth={4} />}
@@ -144,7 +145,7 @@ export default function Register() {
             ))}
           </ul>
         </PasswordInput>
-        <button type="submit" className={cn(button({ size: 'lg' }), 'mt-2 w-full')} disabled={loading}>
+        <button type="submit" className={cn(button(), 'mt-2 w-full')} disabled={loading}>
           {loading ? 'Please wait…' : 'Account banayein'}
         </button>
       </form>

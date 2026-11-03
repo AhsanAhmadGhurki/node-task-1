@@ -5,7 +5,7 @@ import AvatarUpload from '../components/AvatarUpload'
 import Loader from '../components/Loader'
 import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
-import { button, card, cn, field, form, hint, hintText, input, label, pageTitle, subtitle, titleText } from '../ui/styles'
+import { button, cn, field, form, hint, hintText, input, label, pageHeader, pageTitle, panel, sectionRow, subtitle, titleText } from '../ui/styles'
 import { NAME_MAX_LENGTH, profileFieldErrors, toAlert } from '../utils/helpers'
 
 // kamyabi ka paigham itni der baad khud hat jaata hai — error rehta hai jab tak band na karein (Tickets jaisa)
@@ -97,71 +97,96 @@ export default function Profile() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <h1 className={pageTitle}>Profile</h1>
-      <p className={subtitle}>Apna naam, phone aur tasveer — email badli nahi ja sakti.</p>
+    <div>
+      <div className={pageHeader}>
+        <div className="min-w-0">
+          <h1 className={pageTitle}>Profile</h1>
+          <p className={subtitle}>Apna naam, phone aur tasveer — email badli nahi ja sakti.</p>
+        </div>
+      </div>
 
-      <section className={cn(card, 'mt-8')}>
-        <AvatarUpload />
+      {/* settings ka aam dhaancha — bade screen par baayen section ka naam, daayen us ki fields; phone par upar neeche */}
+      <section className={panel}>
+        <div className={sectionRow}>
+          <div>
+            <h2 className={titleText}>Profile photo</h2>
+            <p className={cn(hint, 'mt-1')}>Navbar mein naam ke saath dikhti hai.</p>
+          </div>
+          <AvatarUpload />
+        </div>
 
-        <div className="mt-6 border-t border-border pt-6">
-          <h2 className={titleText}>Zaati maloomat</h2>
-          <p className={cn(subtitle, 'wrap-anywhere')}>{user.email}</p>
-          <div className="mt-6">
+        {/* form neeche ki patti (Save) tak — button form ke andar hi rahe, Enter se submit chalta rahe */}
+        <form onSubmit={handleSubmit} noValidate>
+          <div className={cn(sectionRow, 'border-t border-border')}>
+            <div>
+              <h2 className={titleText}>Zaati maloomat</h2>
+              <p className={cn(hint, 'mt-1')}>Naam navbar mein dikhta hai.</p>
+            </div>
             {!loaded ? (
               <Loader />
             ) : (
-            <form className={form} onSubmit={handleSubmit} noValidate>
-              <div className={field}>
-                <label className={label} htmlFor={nameId}>
-                  Name
-                </label>
-                <input
-                  id={nameId}
-                  className={input}
-                  value={values.name}
-                  onChange={(e) => handleChange('name', e.target.value)}
-                  placeholder="Ali Khan"
-                  maxLength={NAME_MAX_LENGTH}
-                  autoComplete="name"
-                  aria-invalid={Boolean(errors.name)}
-                />
-                {errors.name && <span className={cn(hintText, 'text-error-text')}>{errors.name}</span>}
-              </div>
+              <div className={form}>
+                {/* email sirf dikhane ke liye — input nahi, taake badalne ki koshish hi na ho */}
+                <div className={field}>
+                  <span className={label}>Email</span>
+                  <span className="text-sm wrap-anywhere text-muted">{user.email}</span>
+                </div>
 
-              <div className={field}>
-                <label className={label} htmlFor={phoneId}>
-                  Phone
-                </label>
-                <input
-                  id={phoneId}
-                  className={input}
-                  value={values.phone}
-                  onChange={(e) => handleChange('phone', e.target.value)}
-                  placeholder="03001234567"
-                  inputMode="numeric"
-                  maxLength={11}
-                  autoComplete="tel"
-                  aria-invalid={Boolean(errors.phone)}
-                />
-                {errors.phone ? (
-                  <span className={cn(hintText, 'text-error-text')}>{errors.phone}</span>
-                ) : (
-                  <span className={hint}>03XXXXXXXXX — bilkul 11 digits, spaces ya dash nahi</span>
-                )}
-              </div>
+                <div className={field}>
+                  <label className={label} htmlFor={nameId}>
+                    Name
+                  </label>
+                  <input
+                    id={nameId}
+                    className={input}
+                    value={values.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
+                    placeholder="Ali Khan"
+                    maxLength={NAME_MAX_LENGTH}
+                    autoComplete="name"
+                    aria-invalid={Boolean(errors.name)}
+                  />
+                  {errors.name && <span className={cn(hintText, 'text-error-text')}>{errors.name}</span>}
+                </div>
 
+                <div className={field}>
+                  <label className={label} htmlFor={phoneId}>
+                    Phone
+                  </label>
+                  <input
+                    id={phoneId}
+                    className={input}
+                    value={values.phone}
+                    onChange={(e) => handleChange('phone', e.target.value)}
+                    placeholder="03001234567"
+                    inputMode="numeric"
+                    maxLength={11}
+                    autoComplete="tel"
+                    aria-invalid={Boolean(errors.phone)}
+                  />
+                  {errors.phone ? (
+                    <span className={cn(hintText, 'text-error-text')}>{errors.phone}</span>
+                  ) : (
+                    <span className={hint}>03XXXXXXXXX — bilkul 11 digits, spaces ya dash nahi</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Save daayen, apni chaudai ka — settings page par poori chaudai wala button sign-up form jaisa lagta tha */}
+          {loaded && (
+            <div className="flex justify-end rounded-b-lg border-t border-border bg-subtle/40 px-5 py-3 sm:px-6">
               <button
                 type="submit"
-                className={cn(button({ size: 'lg' }), 'mt-2 w-full')}
+                className={button()}
                 disabled={busy || nothingChanged || Object.keys(clientErrors).length > 0}
               >
                 {busy ? 'Save ho raha hai…' : 'Save'}
               </button>
-            </form>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
+        </form>
       </section>
 
       <Toast alert={alert} onClose={() => setAlert(null)} />

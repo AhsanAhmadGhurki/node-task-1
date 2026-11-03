@@ -21,9 +21,9 @@ export default function TaskForm({ onAdd, disabled }) {
       {/* input + uske neeche counter — button ke barabar jagah le */}
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="relative">
-          <PlusIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted" />
+          <PlusIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
           <input
-            className={cn(inputBase, 'py-2.5 pr-3.5 pl-10')}
+            className={cn(inputBase, 'h-9 pr-3 pl-9 text-sm')}
             name="title"
             placeholder="Naya task likhein…"
             value={title}
@@ -47,7 +47,7 @@ export default function TaskForm({ onAdd, disabled }) {
           {title.length}/{MAX_TITLE_LENGTH}
         </span>
       </span>
-      <button type="submit" className={button({ size: 'compact' })} disabled={disabled || title.trim() === ''}>
+      <button type="submit" className={button()} disabled={disabled || title.trim() === ''}>
         <span className="max-sm:hidden">Add task</span>
         <PlusIcon className="size-4 sm:hidden" />
         <span className="sr-only sm:hidden">Add task</span>

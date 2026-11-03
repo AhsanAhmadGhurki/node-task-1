@@ -1,5 +1,5 @@
 // /dashboard — logged-in user ke tasks: dekhna, add, complete, title edit, delete
-// upar progress (kitne ho gaye), phir naya task, phir filter (All / Pending / Done) wali list
+// ek panel: upar naya task, phir filter (All / Pending / Done) + progress ki patti, phir list
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createTask, deleteTask, getTasks, updateTask } from '../api/taskApi'
 import EmptyState from '../components/EmptyState'
@@ -9,7 +9,7 @@ import TaskItem from '../components/TaskItem'
 import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import { CheckCircleIcon, InboxIcon, ListChecksIcon, RefreshIcon } from '../ui/icons'
-import { button, cn, focusRing, pageTitle, panel } from '../ui/styles'
+import { button, cn, focusRing, pageHeader, pageTitle, panel, subtitle } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 
 const FILTERS = [
@@ -135,87 +135,89 @@ export default function Dashboard() {
   const percent = counts.all ? Math.round((doneCount / counts.all) * 100) : 0
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="flex items-end justify-between gap-4">
+    <div>
+      <div className={pageHeader}>
         <div className="min-w-0">
-          <p className="truncate text-sm text-muted">{greeting(user.email)}</p>
-          <h1 className={cn(pageTitle, 'mt-1')}>My tasks</h1>
+          <h1 className={pageTitle}>My tasks</h1>
+          <p className={cn(subtitle, 'truncate')}>{greeting(user.email)}</p>
         </div>
-        <button className={button({ variant: 'secondary', size: 'sm', weight: 'medium' })} onClick={loadTasks} disabled={busy}>
-          <RefreshIcon className={cn('size-4', busy && 'animate-spin')} />
+        <button className={button({ variant: 'secondary', size: 'sm' })} onClick={loadTasks} disabled={busy}>
+          <RefreshIcon className={cn('size-4', busy && 'animate-spin motion-reduce:animate-none')} />
           <span className="max-sm:hidden">Refresh</span>
         </button>
       </div>
 
-      {/* kitna kaam ho gaya — tasks hon tabhi */}
-      {counts.all > 0 && (
-        <div className={cn(panel, 'mt-6 p-5')}>
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-sm text-muted">
-              <span className="text-2xl font-semibold text-text tabular-nums">{doneCount}</span> / {counts.all} complete
-            </p>
-            <span className="text-sm font-medium text-primary-text tabular-nums">{percent}%</span>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
-            <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${percent}%` }} />
-          </div>
+      {/* ek hi panel — upar naya task, phir filter + progress ki patti, phir list (pehle teen alag dabbe the) */}
+      <div className={cn(panel, 'overflow-hidden')}>
+        <div className="p-4">
+          <TaskForm onAdd={handleAdd} disabled={busy} />
         </div>
-      )}
 
-      <div className={cn(panel, 'mt-4 p-4 sm:p-5')}>
-        <TaskForm onAdd={handleAdd} disabled={busy} />
-      </div>
-
-      {/* filter — har button par ginti; segmented control */}
-      <div className="mt-8">
-        {/* aria-pressed buttons — tablist nahi, kyunki neeche alag tab panels nahi, ek hi list chhanti hai */}
-        <div className="inline-flex rounded-xl bg-subtle p-1" role="group" aria-label="Filter tasks">
-          {FILTERS.map(([key, text]) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
-              className={cn(
-                'inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                focusRing,
-                filter === key ? 'bg-card text-text shadow-sm' : 'text-muted hover:text-text',
-              )}
-            >
-              {text}
-              <span className="text-xs text-muted tabular-nums">{counts[key]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className={cn(panel, 'mt-3 overflow-hidden')}>
-        {tasks === null ? (
-          <div className="p-5">
-            <Loader text="Tasks load ho rahe hain…" />
+        {/* filter aur kitna kaam ho gaya — tasks hon tabhi (khaali list par sab ginti 0, dikhane ka faida nahi) */}
+        {counts.all > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border px-4 py-2.5">
+            {/* aria-pressed buttons — tablist nahi, kyunki neeche alag tab panels nahi, ek hi list chhanti hai */}
+            <div className="inline-flex rounded-md bg-subtle p-0.5" role="group" aria-label="Filter tasks">
+              {FILTERS.map(([key, text]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={filter === key}
+                  onClick={() => setFilter(key)}
+                  className={cn(
+                    'inline-flex h-7 cursor-pointer items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors',
+                    focusRing,
+                    // chuna hua — safed satah aur patli line (saaya nahi)
+                    filter === key ? 'bg-card text-text ring-1 ring-border' : 'text-muted hover:text-text',
+                  )}
+                >
+                  {text}
+                  <span className="text-xs text-muted tabular-nums">{counts[key]}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2.5 text-xs text-muted">
+              <span className="tabular-nums">
+                <span className="font-medium text-text">{doneCount}</span> of {counts.all} done
+              </span>
+              <span className="h-1 w-24 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
+                <span
+                  className="block h-full rounded-full bg-primary transition-[width] duration-300"
+                  style={{ width: `${percent}%` }}
+                />
+              </span>
+            </div>
           </div>
-        ) : visible.length === 0 ? (
-          counts.all === 0 ? (
-            <EmptyState icon={InboxIcon} title="Abhi koi task nahi" text="Upar likh kar apna pehla task add karein." />
-          ) : filter === 'done' ? (
-            <EmptyState icon={ListChecksIcon} title="Abhi kuch complete nahi hua" text="Task ke saath wala box tick karein." />
-          ) : (
-            <EmptyState icon={CheckCircleIcon} title="Sab kaam ho gaya!" text="Koi pending task nahi bacha." />
-          )
-        ) : (
-          <ul className="divide-y divide-border">
-            {visible.map((task) => (
-              <TaskItem
-                key={task._id}
-                task={task}
-                onToggle={handleToggle}
-                onDelete={handleDelete}
-                onRename={handleRename}
-                disabled={busy}
-              />
-            ))}
-          </ul>
         )}
+
+        <div className="border-t border-border">
+          {tasks === null ? (
+            <div className="p-4">
+              <Loader text="Tasks load ho rahe hain…" />
+            </div>
+          ) : visible.length === 0 ? (
+            counts.all === 0 ? (
+              <EmptyState icon={InboxIcon} title="Abhi koi task nahi" text="Upar likh kar apna pehla task add karein." />
+            ) : filter === 'done' ? (
+              <EmptyState icon={ListChecksIcon} title="Abhi kuch complete nahi hua" text="Task ke saath wala box tick karein." />
+            ) : (
+              <EmptyState icon={CheckCircleIcon} title="Sab kaam ho gaya!" text="Koi pending task nahi bacha." />
+            )
+          ) : (
+            <ul className="divide-y divide-border">
+              {visible.map((task) => (
+                <TaskItem
+                  key={task._id}
+                  task={task}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                  onRename={handleRename}
+                  disabled={busy}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <Toast alert={alert} onClose={() => setAlert(null)} />

@@ -8,7 +8,7 @@ import TicketForm from '../components/TicketForm'
 import TicketItem from '../components/TicketItem'
 import Toast from '../components/Toast'
 import { InboxIcon } from '../ui/icons'
-import { badge, card, cn, pageTitle, panel, subtitle, titleText } from '../ui/styles'
+import { badge, card, cn, pageHeader, pageTitle, panel, subtitle, titleText } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 
 // kamyabi ka paigham itni der baad khud hat jaata hai — error rehta hai jab tak agla action na ho
@@ -77,16 +77,22 @@ export default function Tickets() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      <h1 className={pageTitle}>Support</h1>
-      <p className={subtitle}>Masla batayein — screenshot ya PDF ke saath. Har ticket aur us ki files sirf aap dekh sakte hain.</p>
+    <div>
+      <div className={pageHeader}>
+        <div className="min-w-0">
+          <h1 className={pageTitle}>Support</h1>
+          <p className={subtitle}>
+            Masla batayein — screenshot ya PDF ke saath. Har ticket aur us ki files sirf aap dekh sakte hain.
+          </p>
+        </div>
+      </div>
 
-      {/* bade screen par do column — baayen form (scroll par saath rehta hai), daayen tickets */}
-      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <section className={cn(card, 'lg:sticky lg:top-24')}>
+      {/* bade screen par do column — baayen form (scroll par saath rehta hai; navbar 56px + 24px jagah), daayen tickets */}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <section className={cn(card, 'lg:sticky lg:top-20')}>
           <h2 className={titleText}>Naya ticket</h2>
           <p className={subtitle}>Hum jaldi jawab denge.</p>
-          <div className="mt-6">
+          <div className="mt-5">
             <TicketForm onCreate={handleCreate} disabled={busy} progress={progress} />
           </div>
         </section>
@@ -97,15 +103,16 @@ export default function Tickets() {
             {tickets?.length > 0 && <span className={badge}>{tickets.length}</span>}
           </div>
           {tickets === null ? (
-            <div className={cn(panel, 'mt-4 p-5')}>
+            <div className={cn(panel, 'mt-3 p-4')}>
               <Loader text="Tickets load ho rahe hain…" />
             </div>
           ) : tickets.length === 0 ? (
-            <div className={cn(panel, 'mt-4')}>
+            <div className={cn(panel, 'mt-3')}>
               <EmptyState icon={InboxIcon} title="Abhi koi ticket nahi" text="Form bhar kar apna pehla ticket bhejein." />
             </div>
           ) : (
-            <ul className="mt-4 flex flex-col gap-3">
+            // ek panel, beech mein lakeerein — tasks ki list jaisa (pehle har ticket alag tairta card tha)
+            <ul className={cn(panel, 'mt-3 divide-y divide-border')}>
               {tickets.map((ticket) => (
                 <TicketItem key={ticket._id} ticket={ticket} onDownload={handleDownload} disabled={busy} />
               ))}

@@ -170,15 +170,11 @@ export const ClockIcon = (props) => (
   </Svg>
 )
 
-// app ka nishan — gol kone wala chokor aur andar check; inverted — rangeen pas-manzar (auth panel) par safed
-export function LogoMark({ inverted = false, className = 'size-8' }) {
+// app ka nishan — chhote kone wala chokor aur andar check (favicon jaisa)
+export function LogoMark({ className = 'size-7' }) {
   return (
     <span
-      className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-lg shadow-sm',
-        inverted ? 'bg-white text-primary' : 'bg-primary text-white',
-        className,
-      )}
+      className={cn('inline-flex shrink-0 items-center justify-center rounded-md bg-primary text-white', className)}
       aria-hidden="true"
     >
       <CheckIcon className="size-[55%]" strokeWidth={3.2} />

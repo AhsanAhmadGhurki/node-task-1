@@ -15,11 +15,11 @@ export default function PasswordInput({ value, onChange, autoComplete, hint, chi
       <label htmlFor={id} className={label}>
         Password
       </label>
-      {/* button input ke andar daayen — input mein uske liye jagah (pr-11) */}
+      {/* button input ke andar daayen — input mein uske liye jagah (pr-10) */}
       <span className="relative">
         <input
           id={id}
-          className={cn(inputBase, 'py-2.5 pr-11 pl-3.5')}
+          className={cn(inputBase, 'h-9 pr-10 pl-3 text-sm')}
           type={visible ? 'text' : 'password'}
           name="password"
           value={value}
@@ -31,7 +31,7 @@ export default function PasswordInput({ value, onChange, autoComplete, hint, chi
         <button
           type="button"
           className={cn(
-            'absolute inset-y-1 right-1 flex w-9 cursor-pointer items-center justify-center rounded-lg text-muted transition hover:bg-subtle hover:text-text',
+            'absolute inset-y-1 right-1 flex w-7 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-subtle hover:text-text',
             focusRing,
           )}
           onClick={() => setVisible((v) => !v)}
@@ -44,7 +44,7 @@ export default function PasswordInput({ value, onChange, autoComplete, hint, chi
       </span>
       {/* hint — ek line; children — register ki rules checklist jaisa kuch bhi */}
       {(hint || children) && (
-        <div id={hintId} className={cn(hintClass, 'mt-0.5')}>
+        <div id={hintId} className={hintClass}>
           {hint}
           {children}
         </div>

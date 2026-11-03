@@ -1,9 +1,9 @@
-// profile page par badi tasveer + "Photo badlo" — file chuno, foran upload
+// profile page par tasveer + "Photo badlo" — file chuno, foran upload (section ki heading Profile page deta hai)
 import { useRef, useState } from 'react'
 import { uploadAvatar } from '../api/userApi'
 import { useAuth } from '../hooks/useAuth'
 import { UploadIcon } from '../ui/icons'
-import { button, cn, hint, hintText, titleText } from '../ui/styles'
+import { button, cn, hint, hintText } from '../ui/styles'
 import { AVATAR_TYPES, avatarFileError, toAlert } from '../utils/helpers'
 import Avatar from './Avatar'
 
@@ -40,13 +40,12 @@ export default function AvatarUpload() {
   }
 
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex items-center gap-4">
       <Avatar size="lg" className={cn(uploading && 'opacity-60')} />
       <div className="flex min-w-0 flex-col items-start gap-2">
-        <h2 className={titleText}>Profile photo</h2>
         <button
           type="button"
-          className={button({ variant: 'secondary', size: 'sm', weight: 'medium' })}
+          className={button({ variant: 'secondary', size: 'sm' })}
           onClick={() => inputRef.current.click()}
           disabled={uploading}
         >

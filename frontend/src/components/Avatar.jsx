@@ -3,10 +3,10 @@ import { useAuth } from '../hooks/useAuth'
 import { useFileUrl } from '../hooks/useFileUrl'
 import { cn } from '../ui/styles'
 
-// ring bhi size ke saath — base mein ek ring aur upar se doosri jodo to Tailwind mein tay nahi kaun jeete
+// sirf naap aur harf ka size — ring/saaya nahi (sajawat; border hi kaafi)
 const sizes = {
-  sm: 'size-9 text-sm ring-2 ring-card',
-  lg: 'size-20 text-3xl ring-4 ring-primary-soft',
+  sm: 'size-8 text-sm',
+  lg: 'size-16 text-2xl',
 }
 
 export default function Avatar({ size = 'sm', className }) {
@@ -18,7 +18,8 @@ export default function Avatar({ size = 'sm', className }) {
   return (
     <span
       className={cn(
-        'flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary font-semibold text-white',
+        // neutral — harf wala gola grey; navbar mein ek aur rangeen dabba nahi
+        'flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-subtle font-medium text-text',
         sizes[size],
         className,
       )}

@@ -49,7 +49,7 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
 
   if (draft !== null) {
     return (
-      <li className="bg-subtle/50 px-4 py-3 sm:px-5">
+      <li className="bg-subtle/50 px-4 py-2.5">
         <form className="flex items-start gap-2" onSubmit={handleSave}>
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <input
@@ -70,12 +70,12 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
               {draft.length}/{MAX_TITLE_LENGTH} · Enter save, Esc cancel
             </span>
           </span>
-          <button type="submit" className={button({ size: 'compact' })} disabled={disabled || draft.trim() === ''}>
+          <button type="submit" className={button()} disabled={disabled || draft.trim() === ''}>
             Save
           </button>
           <button
             type="button"
-            className={button({ variant: 'ghost', size: 'compact', weight: 'medium' })}
+            className={button({ variant: 'ghost' })}
             onClick={cancel}
             disabled={disabled}
           >
@@ -87,29 +87,29 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
   }
 
   return (
-    <li className="group flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-subtle/50 sm:px-5">
-      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-[15px]">
+    <li className="group flex min-h-12 items-center justify-between gap-3 px-4 py-2 transition-colors hover:bg-subtle/50">
+      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-sm">
         {/* asli checkbox (keyboard, screen reader) — browser ka roop hata kar apna; tick icon peer-checked se */}
-        <span className="relative flex size-5 shrink-0 items-center justify-center">
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
           <input
             type="checkbox"
             className={cn(
-              'peer m-0 size-5 cursor-pointer appearance-none rounded-md border-2 border-border bg-card transition checked:border-primary checked:bg-primary hover:enabled:border-primary disabled:cursor-default',
+              'peer m-0 size-4 cursor-pointer appearance-none rounded-[4px] border-[1.5px] border-input bg-card transition-colors checked:border-primary checked:bg-primary hover:enabled:border-primary disabled:cursor-default',
               focusRing,
             )}
             checked={task.completed}
             onChange={() => onToggle(task)}
             disabled={disabled}
           />
-          <CheckIcon className="pointer-events-none absolute size-3.5 text-white opacity-0 peer-checked:opacity-100" strokeWidth={3.5} />
+          <CheckIcon className="pointer-events-none absolute size-3 text-white opacity-0 peer-checked:opacity-100" strokeWidth={3.5} />
         </span>
         {/* wrap-anywhere — lamba shabd (bina space) bhi agli line mein, row bahar na nikle */}
-        <span className={cn('wrap-anywhere transition', task.completed && 'text-muted line-through')}>{task.title}</span>
+        <span className={cn('wrap-anywhere transition-colors', task.completed && 'text-muted line-through')}>{task.title}</span>
       </label>
       {/* mouse wale screen par hover/focus par hi dikhen (list saaf rahe); touch par hamesha; "Delete?" khula ho to bhi */}
       <span
         className={cn(
-          'flex shrink-0 items-center gap-0.5 transition',
+          'flex shrink-0 items-center gap-0.5 transition-opacity',
           !confirming && 'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100',
         )}
       >
@@ -125,7 +125,7 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
           </button>
         )}
         <button
-          className={confirming ? button({ variant: 'danger', size: 'sm', weight: 'medium' }) : button({ variant: 'ghost', size: 'icon' })}
+          className={confirming ? button({ variant: 'danger', size: 'sm' }) : button({ variant: 'ghost', size: 'icon' })}
           onClick={handleDelete}
           disabled={disabled}
           aria-label={confirming ? `Pakka delete karein: ${task.title}` : `Delete ${task.title}`}

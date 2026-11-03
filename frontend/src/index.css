@@ -2,44 +2,48 @@
 
 /* sirf theme ke colors yahan — styling saari JSX mein Tailwind classes se (src/ui/styles.js mein shared) */
 /* light/dark — system ki setting se; Tailwind ke colors (bg-card, text-muted …) inhi variables se bante hain */
+/* neutral grey sab jagah, rang (primary) sirf asal action, focus aur links par — docs/redesign/design.md §4 */
 :root {
   /* form controls aur scrollbar bhi theme ke mutabiq */
   color-scheme: light;
-  --app-bg: #f6f7fb;
+  --app-bg: #f7f7f8;
   --app-card: #ffffff;
   /* card ke andar halki satah — hover, segmented control, chips */
-  --app-subtle: #f1f3f8;
-  --app-text: #0f172a;
-  --app-muted: #64748b;
-  --app-border: #e3e7ef;
-  --app-primary: #4f46e5;
-  --app-primary-hover: #4338ca;
-  /* primary ka halka roop (active nav, badges) aur us par likhne ka rang — links bhi isi se (dark mein primary kam contrast deta) */
-  --app-primary-soft: #eef0ff;
-  --app-primary-text: #4338ca;
-  --app-success-bg: #ecfdf3;
-  --app-success-text: #067647;
-  --app-error-bg: #fef1f1;
-  --app-error-text: #c0262d;
+  --app-subtle: #f1f1f3;
+  --app-text: #18181b;
+  --app-muted: #62626c;
+  --app-border: #e4e4e7;
+  /* input aur secondary button ka border — panel ki line se zara gehra, taake field field lage */
+  --app-input: #d4d4d8;
+  --app-primary: #2557d6;
+  --app-primary-hover: #1d48b8;
+  /* primary ka halka roop (drag-over, selected) aur us par likhne ka rang — links bhi isi se (dark mein primary kam contrast deta) */
+  --app-primary-soft: #edf2fd;
+  --app-primary-text: #1d48b8;
+  --app-success-bg: #effaf3;
+  --app-success-text: #157a3c;
+  --app-error-bg: #fef3f2;
+  --app-error-text: #b42318;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --app-bg: #0b0d12;
-    --app-card: #12151c;
-    --app-subtle: #1a1e28;
-    --app-text: #e8eaf0;
-    --app-muted: #8b93a7;
-    --app-border: #252b37;
-    --app-primary: #5b57f0;
-    --app-primary-hover: #4f46e5;
-    --app-primary-soft: #1f1e3f;
-    --app-primary-text: #a9abff;
-    --app-success-bg: #0e2a1c;
-    --app-success-text: #6ee7a8;
-    --app-error-bg: #2d1215;
-    --app-error-text: #fda4a4;
+    --app-bg: #0f0f11;
+    --app-card: #18181b;
+    --app-subtle: #202024;
+    --app-text: #ededef;
+    --app-muted: #a0a0aa;
+    --app-border: #27272a;
+    --app-input: #3a3a40;
+    --app-primary: #2f62e0;
+    --app-primary-hover: #2557d6;
+    --app-primary-soft: #1a2340;
+    --app-primary-text: #9db8ff;
+    --app-success-bg: #0f2a1b;
+    --app-success-text: #6fdc9c;
+    --app-error-bg: #2d1414;
+    --app-error-text: #fca5a5;
   }
 }
 
@@ -51,6 +55,7 @@
   --color-text: var(--app-text);
   --color-muted: var(--app-muted);
   --color-border: var(--app-border);
+  --color-input: var(--app-input);
   --color-primary: var(--app-primary);
   --color-primary-hover: var(--app-primary-hover);
   --color-primary-soft: var(--app-primary-soft);
@@ -61,8 +66,7 @@
   --color-error-text: var(--app-error-text);
   /* Inter install ho to woh, warna system font — bahar se koi font load nahi hota */
   --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* text-sm / text-xs apni line-height bhi lagate hain (1.43 / 1.33) — pehle wali CSS mein browser ki "normal" thi;
-     wahi rakho, warna buttons/navbar uncha ho kar page mein scrollbar aa jaata */
-  --text-sm--line-height: normal;
-  --text-xs--line-height: normal;
+  /* 24 / 16 / 14 / 13 / 12 — bas yahi sizes; 13px (text-small) lambi tehreer ke liye: ticket description, meta */
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.125rem;
 }

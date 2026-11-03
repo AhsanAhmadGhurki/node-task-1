@@ -2,7 +2,6 @@
 // code sahi ho to backend usi waqt login bhi kar deta hai — onVerified({ token, user }) se parent session banata hai
 import { useEffect, useState } from 'react'
 import { resendVerification, verifyEmail } from '../api/authApi'
-import { MailIcon } from '../ui/icons'
 import { button, cn, field, form, inputBase, label } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 
@@ -61,18 +60,15 @@ export default function VerifyEmail({ email, password, onResult, onVerified, sen
 
   return (
     <form className={form} onSubmit={handleVerify}>
-      {/* kis email par code gaya — icon ke saath, taake galat email foran nazar aaye */}
-      <div className="flex items-start gap-3 rounded-xl bg-subtle p-3.5 text-sm text-muted">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-text">
-          <MailIcon />
-        </span>
+      {/* kis email par code gaya — email gehre rang mein, taake galat email foran nazar aaye (icon wala dabba nahi, saada paragraph) */}
+      <div className="text-sm text-muted">
         {codeRequested ? (
-          <p className="m-0">
+          <p className="m-0 leading-relaxed">
             <strong className="font-medium text-text wrap-anywhere">{email}</strong> par 6-digit code bheja gaya hai (Spam bhi
             dekhein). 5 minute tak chalega.
           </p>
         ) : (
-          <p className="m-0">
+          <p className="m-0 leading-relaxed">
             Email abhi verify nahi hua. &quot;Naya code bhejo&quot; dabayen, phir{' '}
             <strong className="font-medium text-text wrap-anywhere">{email}</strong> par aaya 6-digit code yahan daalein.
           </p>
@@ -84,8 +80,8 @@ export default function VerifyEmail({ email, password, onResult, onVerified, sen
         </label>
         <input
           id="verify-otp"
-          // bade, door door digits — code padh kar likhna aasan
-          className={cn(inputBase, 'px-3.5 py-3 text-center font-mono text-2xl tracking-[0.5em]')}
+          // bade, door door digits — code padh kar likhna aasan; is screen par yahi asal cheez hai, is liye 48px (baaki inputs 36px)
+          className={cn(inputBase, 'h-12 px-3 text-center font-mono text-2xl font-medium tracking-[0.3em]')}
           type="text"
           name="otp"
           placeholder="••••••"
@@ -100,12 +96,13 @@ export default function VerifyEmail({ email, password, onResult, onVerified, sen
           autoFocus
         />
       </div>
-      <button type="submit" className={cn(button({ size: 'lg' }), 'w-full')} disabled={busy || otp.length !== 6}>
+      <button type="submit" className={cn(button(), 'w-full')} disabled={busy || otp.length !== 6}>
         {busy ? 'Please wait…' : 'Verify & login'}
       </button>
       <button
         type="button"
-        className={cn(button({ variant: 'secondary', weight: 'medium' }), 'w-full')}
+        // doosra rasta — ghost, taake asal button (Verify) hi nazar mein rahe
+        className={cn(button({ variant: 'ghost' }), 'w-full')}
         onClick={handleResend}
         disabled={busy || cooldown > 0}
       >

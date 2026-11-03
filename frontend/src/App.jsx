@@ -13,8 +13,8 @@ export default function App() {
   return (
     <>
       <Navbar />
-      {/* har page apni chaudai khud rakhta hai (auth: split card, dashboard: patli, tickets: chaudi) */}
-      <main className="px-4 pt-8 pb-16 sm:px-6 sm:pt-12">
+      {/* sab pages ki ek hi chaudai (navbar jaisi) — tab badalne par logo, title aur content ka baayan kinara nahi hilta */}
+      <main className="mx-auto w-full max-w-4xl px-4 pt-8 pb-16 sm:px-6">
         <Routes>
           {/* "/" par seedha dashboard — login na ho to ProtectedRoute /login bhej dega */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -11,12 +11,12 @@ export default function Alert({ alert }) {
     <div
       // wrap-anywhere — paigham mein task ka title hota hai; lamba shabd (bina space) bhi toote, warna page side mein scroll
       className={cn(
-        'mb-5 flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm wrap-anywhere',
+        'mb-5 flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm wrap-anywhere',
         alert.ok ? 'border-success-text/20 bg-success-bg text-success-text' : 'border-error-text/20 bg-error-bg text-error-text',
       )}
       role={alert.ok ? 'status' : 'alert'}
     >
-      <Icon className="mt-px size-4 shrink-0" />
+      <Icon className="mt-0.5 size-4 shrink-0" />
       <span className="min-w-0">{alert.text}</span>
     </div>
   )

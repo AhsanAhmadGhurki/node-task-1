@@ -1,5 +1,5 @@
 // upar ki patti (sirf login ke baad) — logo, Tasks/Tickets links, avatar + naam (click = profile) aur logout
-// sticky — lambi list scroll karte waqt bhi navigation saamne rahe
+// sticky — lambi list scroll karte waqt bhi navigation saamne rahe; thos rang (blur nahi) — peeche saada background hi hai
 import { Link, NavLink } from 'react-router'
 import { useAuth } from '../hooks/useAuth'
 import Avatar from './Avatar'
@@ -18,10 +18,10 @@ export default function Navbar() {
   if (!user) return null
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur">
-      <nav className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
-        <div className="flex shrink-0 items-center gap-3 sm:gap-6">
-          <Link to="/" className={cn('flex items-center gap-2.5 rounded-lg font-semibold text-text no-underline', focusRing)}>
+    <header className="sticky top-0 z-30 border-b border-border bg-card">
+      <nav className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-3 px-4 sm:px-6">
+        <div className="flex shrink-0 items-center gap-3 sm:gap-5">
+          <Link to="/" className={cn('flex items-center gap-2 rounded-md text-sm font-semibold text-text no-underline', focusRing)}>
             <LogoMark />
             {/* phone par sirf nishan — links ke liye jagah */}
             <span className="max-sm:hidden">TaskDesk</span>
@@ -33,10 +33,10 @@ export default function Navbar() {
                 to={to}
                 className={({ isActive }) =>
                   cn(
-                    'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium no-underline transition',
+                    'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium no-underline transition-colors',
                     focusRing,
-                    // jis page par hain woh pill — baaki halke
-                    isActive ? 'bg-primary-soft text-primary-text' : 'text-muted hover:bg-subtle hover:text-text',
+                    // jis page par hain woh halki grey pill aur gehri likhai — rang sirf asal action ke liye bachta hai
+                    isActive ? 'bg-subtle text-text' : 'text-muted hover:bg-subtle hover:text-text',
                   )
                 }
               >
@@ -50,18 +50,18 @@ export default function Navbar() {
           {/* naam (na ho to email) + tasveer = profile ka rasta; photo profile page par badalti hai */}
           <Link
             to="/profile"
-            className={cn('group flex min-w-0 items-center gap-2.5 rounded-full no-underline', focusRing)}
+            className={cn('group flex min-w-0 items-center gap-2.5 rounded-md no-underline', focusRing)}
             title="Profile"
             aria-label={`Profile: ${user.name || user.email}`}
           >
             {/* lamba naam ek line mein, aakhir mein "…"; chhote screen par nahi — links, avatar, logout ke baad jagah nahi */}
-            <span className="truncate text-sm text-muted transition group-hover:text-text max-md:hidden">
+            <span className="truncate text-sm text-muted transition-colors group-hover:text-text max-md:hidden">
               {user.name || user.email}
             </span>
-            <Avatar className="transition group-hover:ring-primary/40" />
+            <Avatar />
           </Link>
           <button
-            className={button({ variant: 'ghost', size: 'sm', weight: 'medium' })}
+            className={button({ variant: 'ghost', size: 'sm' })}
             onClick={() => logout()}
             aria-label="Logout"
             title="Logout"

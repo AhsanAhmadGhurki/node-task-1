@@ -1,7 +1,7 @@
 // naya support ticket — title, description aur 0–3 files; parent (Tickets page) asal API call karta hai
 import { useEffect, useId, useRef, useState } from 'react'
 import { FileIcon, UploadIcon, XIcon } from '../ui/icons'
-import { button, cn, field, focusRing, form, hint, hintText, input, label } from '../ui/styles'
+import { button, cn, field, focusRing, form, hint, hintText, input, inputBase, label } from '../ui/styles'
 import {
   ATTACHMENT_TYPES,
   MAX_ATTACHMENTS,
@@ -119,7 +119,7 @@ export default function TicketForm({ onCreate, disabled, progress }) {
         </label>
         <textarea
           id={descriptionId}
-          className={cn(input, 'min-h-24 resize-y')}
+          className={cn(inputBase, 'min-h-24 resize-y px-3 py-2 text-sm')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Kya hua, kab hua, kya expect kiya tha…"
@@ -147,11 +147,11 @@ export default function TicketForm({ onCreate, disabled, progress }) {
         <button
           type="button"
           className={cn(
-            'flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-6 text-center text-sm transition disabled:cursor-not-allowed disabled:opacity-60',
+            'flex cursor-pointer flex-col items-center gap-1 rounded-md border border-dashed px-4 py-5 text-center text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60',
             focusRing,
             dragging
               ? 'border-primary bg-primary-soft text-text'
-              : 'border-border bg-subtle/50 text-muted hover:enabled:border-primary hover:enabled:bg-primary-soft',
+              : 'border-input bg-card text-muted hover:enabled:border-primary hover:enabled:bg-subtle/50',
           )}
           onClick={() => inputRef.current.click()}
           onDragOver={(e) => {
@@ -162,17 +162,15 @@ export default function TicketForm({ onCreate, disabled, progress }) {
           onDrop={handleDrop}
           disabled={disabled || full}
         >
-          <span className="mb-1 flex size-10 items-center justify-center rounded-full bg-card text-primary-text shadow-sm">
-            <UploadIcon className="size-5" />
-          </span>
+          <UploadIcon className="size-4 text-muted" />
           <span className="font-medium text-text">
             {full ? `${MAX_ATTACHMENTS} files ho gayin` : 'Files yahan chhodein ya click karke chunein'}
           </span>
           <span className={hintText}>JPEG, PNG, WebP ya PDF · har file 2 MB tak</span>
         </button>
 
-        {/* kitni jagah bachi — files ki ginti aur MB, had paar ho to laal */}
-        <div className="flex flex-col gap-1">
+        {/* kitni jagah bachi — files ki ginti aur MB, had paar ho to laal; patli patti, taake optional field par zyada nazar na jaye */}
+        <div className="flex flex-col gap-1.5">
           <div className="flex justify-between">
             <span className={cn(hintText, files.length > MAX_ATTACHMENTS ? 'text-error-text' : 'text-muted')}>
               {files.length}/{MAX_ATTACHMENTS} files
@@ -181,7 +179,7 @@ export default function TicketForm({ onCreate, disabled, progress }) {
               {formatBytes(total)} / 5 MB
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
+          <div className="h-1 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
             <div
               className={cn('h-full rounded-full', total > MAX_TOTAL_ATTACHMENT_BYTES ? 'bg-error-text' : 'bg-primary')}
               style={{ width: `${Math.min(100, (total / MAX_TOTAL_ATTACHMENT_BYTES) * 100)}%` }}
@@ -197,22 +195,26 @@ export default function TicketForm({ onCreate, disabled, progress }) {
                 <li
                   key={id}
                   className={cn(
-                    'flex items-center gap-3 rounded-xl border p-2 text-sm',
-                    problem ? 'border-error-text/60 bg-error-bg' : 'border-border bg-card',
+                    'flex items-center gap-3 rounded-md border py-1.5 pr-1.5 pl-2 text-sm',
+                    problem ? 'border-error-text/40 bg-error-bg' : 'border-border bg-card',
                   )}
                 >
                   {/* image ka chhota preview, PDF (ya galat file) par type ka label */}
                   {preview ? (
-                    <img src={preview} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
+                    <img src={preview} alt="" className="size-8 shrink-0 rounded object-cover" />
                   ) : (
-                    <span className="flex size-10 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg bg-subtle text-muted">
-                      <FileIcon className="size-4" />
-                      <span className="text-[9px] font-semibold">{file.type === 'application/pdf' ? 'PDF' : 'FILE'}</span>
+                    // PDF (ya galat file) — icon; asal type neeche size ke saath likha hai
+                    <span
+                      className="flex size-8 shrink-0 items-center justify-center rounded bg-subtle text-muted"
+                      title={file.type === 'application/pdf' ? 'PDF' : 'File'}
+                    >
+                      <FileIcon />
                     </span>
                   )}
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate font-medium">{file.name}</span>
                     <span className={cn(hintText, problem ? 'text-error-text' : 'text-muted')}>
+                      {file.type === 'application/pdf' && 'PDF · '}
                       {formatBytes(file.size)}
                       {problem && ` · ${problem}`}
                     </span>
@@ -243,7 +245,7 @@ export default function TicketForm({ onCreate, disabled, progress }) {
       {/* upload ke dauran button par hi progress — 5 MB mein kuch second lag sakte hain */}
       <button
         type="submit"
-        className={cn(button({ size: 'lg' }), 'relative mt-2 w-full overflow-hidden')}
+        className={cn(button(), 'relative mt-2 w-full overflow-hidden')}
         disabled={disabled || empty || titleTooShort || Boolean(filesError)}
       >
         {uploading && (
