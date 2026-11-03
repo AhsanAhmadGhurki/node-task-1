@@ -9,7 +9,7 @@ import { formatBytes, timeAgo } from '../utils/helpers'
 const LONG_DESCRIPTION = 180
 
 // tasveer wali attachment ka chhota thumbnail — click par poori tasveer naye tab mein
-// file GET /files/:fileId se token ke saath (blob URL); jab tak na aaye ya fail ho, tasveer ka icon
+// signed link (10 minute, bina token — useFileUrl) seedha <img src> aur <a href> mein; jab tak na aaye ya fail ho, icon
 // PDF ka preview nahi — backend bhi PDF hamesha download karwata hai (PDF ke andar script/links)
 function ImagePreview({ attachment }) {
   const { url } = useFileUrl(attachment._id)
@@ -24,16 +24,17 @@ function ImagePreview({ attachment }) {
   }
 
   return (
-    <button
-      type="button"
-      className={cn(box, 'cursor-pointer', focusRing)}
-      // blob URL isi tab ka hai — naya tab bhi wahi tasveer dikhata hai, server se dobara nahi maangta
-      onClick={() => window.open(url, '_blank', 'noopener')}
+    // asli link — naya tab bina token ke bhi khulta hai (link khud saboot hai); noopener: naya tab is page ko na chhede
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(box, focusRing)}
       aria-label={`Preview ${attachment.originalName}`}
       title={`Preview ${attachment.originalName}`}
     >
       <img src={url} alt="" className="size-full object-cover" />
-    </button>
+    </a>
   )
 }
 

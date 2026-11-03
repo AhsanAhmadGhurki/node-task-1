@@ -11,7 +11,7 @@ const sizes = {
 
 export default function Avatar({ size = 'sm', className }) {
   const { user } = useAuth()
-  // user.avatar = fileId — tasveer GET /files/:fileId se token ke saath (blob URL); jab tak na aaye, harf
+  // user.avatar = fileId — <img> token nahi bhej sakta, is liye 10 minute ka signed link (useFileUrl); jab tak na aaye, harf
   const { url } = useFileUrl(user.avatar)
   const letter = (user.name || user.email)[0].toUpperCase()
 
