@@ -29,7 +29,7 @@ const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // itne waqt ke andar ise chori nahi, race maano (warna dono tab logout ho jaate)
 const REFRESH_REUSE_GRACE_MS = 30 * 1000;
 
-// email verify ka code — 6 digit (sirf register ke baad; login par code nahi)
+// email ke codes — 6 digit: register ke baad email verify ("verify-email"), aur login ka doosra qadam ("login", 2FA)
 // 5 minute chalta hai, 5 galat koshishon par band, aur ek user ghante mein 3 hi maang sakta hai
 const OTP_TTL_MS = config.otpTtlMs;
 const OTP_MAX_ATTEMPTS = 5;
@@ -63,7 +63,7 @@ function normalizeEmail(email) {
 }
 
 // naya code banao, hash save karo, ginti badhao — code lautata hai (email ke liye), had poori ho to 429
-// purpose: abhi sirf "verify-email" — model mein field hai taake aage koi aur code (jaise password reset) alag rahe
+// purpose: "verify-email" ya "login" — dono ka document aur ghante ki ginti alag
 async function issueOtp(userId, purpose) {
   // crypto.randomInt — Math.random andaza lagane layak hai; padStart taake "000123" bhi 6 digit rahe
   const otp = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
@@ -107,7 +107,14 @@ async function issueOtp(userId, purpose) {
       // document maujood hai — ya to doosri request ne abhi banaya (dobara koshish), ya had poori
       result = await inWindow();
       if (result.matchedCount === 0) {
-        throw new TooManyRequestsError("Too many codes requested. Please try again later.");
+        // window kab khulegi — client ko bacha hua waqt (429 body mein retryAfter/resetAt)
+        const current = await Otp.findOne({ user: userId, purpose }, { windowStart: 1 });
+        const resetMs = current ? current.windowStart.getTime() + OTP_WINDOW_MS - Date.now() : OTP_WINDOW_MS;
+        const minutes = Math.max(1, Math.ceil(resetMs / 60000));
+        throw new TooManyRequestsError(
+          `Too many codes requested. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+          Math.max(1, Math.ceil(resetMs / 1000))
+        );
       }
     }
   }
@@ -384,6 +391,48 @@ async function login({ email, password }) {
   return { token, refreshToken, user };
 }
 
+// login ka code bhej diya — kitni der chalega bhi batao (frontend aur Swagger dono ke kaam ka)
+const LOGIN_CODE_SENT = "A login code has been sent to your email.";
+
+// POST /auth/login/request-otp — 2FA ka pehla qadam: email + password sahi hon to email par login code
+// checkCredentials wahi hai jo /auth/login mein: 401 (ghalat), 423 (lock), 403 (unverified) — password ke baad
+// code sirf sahi password wale ko — is liye ghante ki had (3) ka 429 yahan chhupana nahi padta (account pehle hi saabit)
+async function requestLoginOtp({ email, password }) {
+  const user = await checkCredentials({ email, password });
+
+  // had poori ho to TooManyRequestsError (429, retryAfter ke saath) — seedha errorHandler tak
+  const otp = await issueOtp(user._id, "login");
+
+  // await nahi — register ki tarah response email ka intezar nahi karta
+  emailService.sendOtpEmail(user.email, otp, "login");
+
+  return { message: LOGIN_CODE_SENT, expiresInSeconds: Math.round(OTP_TTL_MS / 1000) };
+}
+
+// verify-otp ki har galti ka ek hi jawab — user nahi / unverified / ghalat / expire / istemal shuda code
+const INVALID_LOGIN_CODE = "Invalid or expired code";
+
+// POST /auth/login/verify-otp — 2FA ka doosra qadam: email + code sahi to tokens (login jaisa)
+// password dobara nahi — code sirf request-otp (sahi password) ke baad hi banta hai, aur email ke malik ko jaata hai
+async function verifyLoginOtp({ email, otp }) {
+  const invalid = new BadRequestError(INVALID_LOGIN_CODE);
+
+  const user = await User.findOne({ email: normalizeEmail(email) });
+  if (!user || !user.isVerified) {
+    // asli code check jitna waqt — warna jaldi jawab bata deta ke account nahi hai
+    await bcrypt.compare(otp, DUMMY_OTP_HASH);
+    throw invalid;
+  }
+
+  // 5 koshishen, 5 minute, ek hi dafa — verify-email wala hi atomic consume
+  await consumeOtp(user._id, "login", otp, invalid);
+
+  const token = signAccessToken(user);
+  const refreshToken = await issueRefreshToken(user._id);
+
+  return { message: "Logged in", token, refreshToken, user };
+}
+
 // sub = token kis user ka hai
 function signAccessToken(user) {
   return jwt.sign({ sub: user.id }, config.jwtSecret, {
@@ -469,6 +518,8 @@ module.exports = {
   register,
   verifyEmail,
   login,
+  requestLoginOtp,
+  verifyLoginOtp,
   refreshSession,
   logout,
   userExists,

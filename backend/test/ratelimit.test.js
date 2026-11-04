@@ -18,6 +18,9 @@ test("resend: ek email par 60s mein ek hi request; har email par, account ho ya 
   const second = await resend("cool@example.com");
   assert.equal(second.status, 429);
   assert.equal(second.json.message, "Please wait a minute before requesting another code.");
+  // bacha hua waqt body mein — seconds (60 tak) aur kab khulega (ISO)
+  assert.ok(second.json.retryAfter >= 1 && second.json.retryAfter <= 60, `retryAfter=${second.json.retryAfter}`);
+  assert.ok(Math.abs(Date.parse(second.json.resetAt) - (Date.now() + second.json.retryAfter * 1000)) < 2000);
   // case/spaces badal kar, aur purane alias se bhi nahi bachta — ek hi ginti
   assert.equal((await ctx.post("/resend-verification", { email: "  COOL@Example.com " })).status, 429);
 
@@ -61,4 +64,9 @@ test("login: account lockout (5) IP limit (50) se pehle — ek account ki galtiy
   for (let i = 0; i < 50; i++) last = await login(`spray${i}@example.com`, "Wrong1234");
   assert.equal(last.status, 429);
   assert.match(last.json.message, /^Too many failed login attempts from this network\. Please try again in \d+ minutes?\.$/);
+  assert.ok(last.json.retryAfter > 0 && last.json.retryAfter <= 15 * 60, `retryAfter=${last.json.retryAfter}`);
+  assert.equal(typeof last.json.resetAt, "string");
+
+  // request-otp bhi wahi limiter instance — /auth/login se ja kar limit nahi bachti
+  assert.equal((await ctx.post("/auth/login/request-otp", { email: "ip-b@example.com", password: "Wrong1234" })).status, 429);
 });

@@ -40,6 +40,9 @@ test("5 galat → 5vi par 423; band waqt mein SAHI password bhi 423, na token na
   // Retry-After seconds mein — 15 minute ke aas paas
   const retryAfter = Number(correct.headers.get("retry-after"));
   assert.ok(retryAfter > 890 && retryAfter <= 900, `Retry-After=${retryAfter}`);
+  // body mein bhi wahi waqt — 429 jaisi shakal { message, retryAfter, resetAt }
+  assert.equal(body.retryAfter, retryAfter);
+  assert.equal(typeof body.resetAt, "string");
 });
 
 test("lock DB mein hai (restart se nahi tootta), aur band waqt mein galtiyan ginti nahi badhati", async () => {

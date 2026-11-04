@@ -71,4 +71,11 @@ const loginRules = [
     .custom(passwordNotTooLong).withMessage(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`)
 ];
 
-module.exports = { registerRules, verifyEmailRules, loginRules };
+// POST /auth/login/request-otp — login jaise hi rules (email + password), code isi ke baad jaata hai
+// POST /auth/login/verify-otp — email + bilkul 6 digit ka code (password nahi, wo request-otp par check ho chuka)
+const verifyLoginOtpRules = [
+  requiredString("email", "Email").trim().toLowerCase().notEmpty().withMessage("Email is required"),
+  requiredString("otp", "Code").matches(/^\d{6}$/).withMessage("Code must be 6 digits")
+];
+
+module.exports = { registerRules, verifyEmailRules, loginRules, verifyLoginOtpRules };

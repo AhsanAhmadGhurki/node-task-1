@@ -11,10 +11,16 @@ export async function register(email, password) {
   return { created: status === 201, data }
 }
 
-// POST /auth/login — { token, user } lautata hai; refresh token httpOnly cookie mein aata hai (JS ko nazar nahi aata)
-// galat password par 401, unverified par 403
-export async function login(email, password) {
-  const { data } = await api.post('/auth/login', { email, password })
+// POST /auth/login/request-otp — 2FA ka pehla qadam: email + password sahi hon to email par login code
+// { message, expiresInSeconds }; 401 ghalat, 403 unverified, 423 lock, 429 { retryAfter } (ghante mein 3 codes)
+export async function requestLoginOtp(email, password) {
+  const { data } = await api.post('/auth/login/request-otp', { email, password })
+  return data
+}
+
+// POST /auth/login/verify-otp — email + 6-digit code; sahi ho to { message, token, user } + refresh cookie (login jaisa)
+export async function verifyLoginOtp(email, otp) {
+  const { data } = await api.post('/auth/login/verify-otp', { email, otp })
   return data
 }
 

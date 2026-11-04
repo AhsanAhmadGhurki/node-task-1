@@ -1,7 +1,15 @@
 // rate limiting — ek IP se had se zyada requests rok do (email spam aur brute force se bachao)
 const { rateLimit } = require("express-rate-limit");
+const { retryInfo } = require("../utils/retryInfo");
 
-// limit poori ho to 429 — baaki errors jaisa { message }
+// 429 ki body — { message, retryAfter, resetAt }; Retry-After header library khud lagati hai (standardHeaders)
+// resetTime memory store hamesha deta hai; na ho to windowMs (poori window) maan lo
+function sendLimited(req, res, message, windowMs) {
+  const resetTime = (req.rateLimit && req.rateLimit.resetTime) || new Date(Date.now() + windowMs);
+  res.status(429).json({ message, ...retryInfo(resetTime) });
+}
+
+// limit poori ho to 429 — { message, retryAfter, resetAt }
 function createLimiter({ windowMs, limit, message, skipSuccessfulRequests = false }) {
   return rateLimit({
     windowMs,
@@ -12,7 +20,7 @@ function createLimiter({ windowMs, limit, message, skipSuccessfulRequests = fals
     legacyHeaders: false,
     // message function bhi ho sakta hai — jaise asal bacha hua waqt (req.rateLimit.resetTime) batane ke liye
     handler: (req, res) => {
-      res.status(429).json({ message: typeof message === "function" ? message(req) : message });
+      sendLimited(req, res, typeof message === "function" ? message(req) : message, windowMs);
     }
   });
 }
@@ -43,7 +51,7 @@ const resendEmailCooldown = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => `resend:${req.body.email.trim().toLowerCase()}`,
   handler: (req, res) => {
-    res.status(429).json({ message: "Please wait a minute before requesting another code." });
+    sendLimited(req, res, "Please wait a minute before requesting another code.", 60 * 1000);
   }
 });
 

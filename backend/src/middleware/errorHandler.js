@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const multer = require("multer");
+const { retryInfoFromSeconds } = require("../utils/retryInfo");
 
 // centralized error handler — 4 parameters (err pehle) se Express isay error handler maanta hai
 // kisi bhi route mein throw hua error seedha yahan aata hai
@@ -51,8 +52,10 @@ function errorHandler(err, req, res, next) {
   // apni error classes (NotFoundError waghaira) aur body-parser ke 4xx — inke messages hum ne khud likhe hain
   if (err.statusCode && err.statusCode < 500) {
     // lock/limit wale errors — client ko pata chale kitni der baad dobara koshish kare
+    // body mein bhi — rate limiters ke 429 jaisi shakal: { message, retryAfter, resetAt }
     if (err.retryAfterSeconds) {
       res.set("Retry-After", String(err.retryAfterSeconds));
+      return res.status(err.statusCode).json({ message: err.message, ...retryInfoFromSeconds(err.retryAfterSeconds) });
     }
     // validation (middleware/validate.js) ki saari galtiyan ek saath — message pehli galti, purane clients ke liye
     if (err.errors) {

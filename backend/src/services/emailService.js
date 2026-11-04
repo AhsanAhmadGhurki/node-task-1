@@ -28,6 +28,14 @@ const OTP_EMAILS = {
     footer: (minutes) =>
       `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}. If you didn't create an account, you can ignore this email.`,
     logLabel: "Verification code"
+  },
+  login: {
+    subject: "Your login code",
+    heading: "Your login code",
+    intro: "Someone (hopefully you) entered your password. Enter this code to finish logging in.",
+    footer: (minutes) =>
+      `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}. If this wasn't you, change your password.`,
+    logLabel: "Login code"
   }
 };
 
@@ -61,7 +69,7 @@ function otpEmailContent(otp, purpose) {
   };
 }
 
-// purpose: abhi sirf "verify-email" (register ke baad)
+// purpose: "verify-email" (register ke baad) ya "login" (2FA)
 async function sendOtpEmail(email, otp, purpose) {
   const content = otpEmailContent(otp, purpose);
 

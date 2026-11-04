@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-// email par jaane wale 6-digit codes — abhi ek kaam: register ke baad email verify (login par code nahi)
+// email par jaane wale 6-digit codes — register ke baad email verify, aur login ka doosra qadam (2FA)
 // har user + purpose ka sirf EK document: abhi wala code + ghante bhar ki request ginti
 const otpSchema = new mongoose.Schema(
   {
@@ -9,10 +9,11 @@ const otpSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
-    // abhi sirf "verify-email" — aage koi aur code (jaise password reset) aaye to uska document aur ginti alag
+    // "verify-email" (register ke baad) ya "login" (2FA) — har purpose ka document aur ghante ki ginti alag
+    // (login ke codes verify ki 3/ghanta had na khayein, aur ulta bhi)
     purpose: {
       type: String,
-      enum: ["verify-email"],
+      enum: ["verify-email", "login"],
       required: true
     },
     // bcrypt hash — asal code sirf email mein, DB leak ho to bhi code nahi milta

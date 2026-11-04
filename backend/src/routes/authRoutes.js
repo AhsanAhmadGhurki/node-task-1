@@ -1,7 +1,7 @@
 const express = require("express");
 const authController = require("../controllers/authController");
 const { validateEmail } = require("../middleware/validation");
-const { registerRules, verifyEmailRules, loginRules } = require("../validators/authValidators");
+const { registerRules, verifyEmailRules, loginRules, verifyLoginOtpRules } = require("../validators/authValidators");
 const { handleValidation } = require("../middleware/validate");
 const { registerLimiter, loginLimiter, resendLimiter, resendEmailCooldown, otpVerifyLimiter } = require("../middleware/rateLimit");
 
@@ -29,6 +29,13 @@ router.post(
 
 // login par limit — validation se pehle, taake khaali/ghalat body wali koshishen bhi ginein
 router.post("/auth/login", loginLimiter, loginRules, handleValidation, authController.login);
+
+// 2FA login — pehle password (code email par), phir code (tokens)
+// wahi loginLimiter instance — /auth/login aur request-otp ki galat koshishen ek hi ginti mein (ek se doosre par ja kar limit nahi bachti)
+// email ka spam: code sirf sahi password par, aur user ki 3/ghanta ginti DB mein (429 + retryAfter)
+router.post("/auth/login/request-otp", loginLimiter, loginRules, handleValidation, authController.requestLoginOtp);
+// code guess — wahi otpVerifyLimiter (verify-email ke saath ek ginti), aur har code par 5 koshishen DB mein
+router.post("/auth/login/verify-otp", otpVerifyLimiter, verifyLoginOtpRules, handleValidation, authController.verifyLoginOtp);
 
 // body nahi chahiye — refresh token httpOnly cookie se aata hai
 router.post("/auth/refresh", authController.refresh);

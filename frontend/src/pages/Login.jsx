@@ -1,13 +1,15 @@
-// /login — email + password; unverified (403) ho to wahin email verify ka code
-// code sahi hote hi backend login bhi kar deta hai — seedha dashboard
+// /login — do qadam (2FA): email + password → email par login code → code se dashboard
+// unverified (403) ho to wahin email verify ka code (code sahi hote hi backend login bhi kar deta hai)
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
-import { login as loginRequest } from '../api/authApi'
+import { requestLoginOtp } from '../api/authApi'
 import Alert from '../components/Alert'
 import AuthLayout from '../components/AuthLayout'
+import LoginCode from '../components/LoginCode'
 import PasswordInput from '../components/PasswordInput'
 import VerifyEmail from '../components/VerifyEmail'
 import { useAuth } from '../hooks/useAuth'
+import { ArrowLeftIcon } from '../ui/icons'
 import { button, cn, field, form, input, label, link } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 
@@ -21,13 +23,15 @@ export default function Login() {
   // unverified login (403) par verify form — usi email + password ke liye jo 403 par bheje the
   // (baad mein input badal bhi jaye to verify aur dobara login isi account ka ho)
   const [verifyCreds, setVerifyCreds] = useState(null)
+  // password sahi (200) — code wali screen, usi email + password ke saath (naya code bhi inhi se)
+  const [codeCreds, setCodeCreds] = useState(null)
 
   // pehle se login hai to seedha dashboard
   if (token) {
     return <Navigate to="/dashboard" replace />
   }
 
-  // verify-email ya login — dono { token, user } dete hain (refresh cookie backend lagata hai)
+  // verify-email ya login code — dono { token, user } dete hain (refresh cookie backend lagata hai)
   function startSession(data) {
     login(data)
     navigate('/dashboard', { replace: true })
@@ -37,7 +41,10 @@ export default function Login() {
     setLoading(true)
     setNotice(null)
     try {
-      startSession(await loginRequest(creds.email, creds.password))
+      const { message } = await requestLoginOtp(creds.email, creds.password)
+      setAlert({ ok: true, status: 200, text: message })
+      setVerifyCreds(null)
+      setCodeCreds(creds)
     } catch (error) {
       setAlert(toAlert(error))
       setVerifyCreds(error.response?.status === 403 ? creds : null)
@@ -49,6 +56,36 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault()
     await doLogin({ email, password })
+  }
+
+  // code screen se wapas — form wahi email/password ke saath, paigham saaf
+  function backToForm() {
+    setCodeCreds(null)
+    setAlert(null)
+  }
+
+  if (codeCreds) {
+    return (
+      <AuthLayout
+        heading="Login code daalein"
+        description="Login ka aakhri qadam."
+        footer={
+          <button type="button" className={button({ variant: 'ghost', size: 'sm' })} onClick={backToForm}>
+            <ArrowLeftIcon />
+            Wapas login par
+          </button>
+        }
+      >
+        <Alert alert={alert} />
+        <LoginCode
+          key={codeCreds.email}
+          email={codeCreds.email}
+          password={codeCreds.password}
+          onResult={setAlert}
+          onLoggedIn={startSession}
+        />
+      </AuthLayout>
+    )
   }
 
   return (

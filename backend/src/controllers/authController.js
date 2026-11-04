@@ -54,6 +54,34 @@ async function login(req, res, next) {
   }
 }
 
+// POST /auth/login/request-otp — body: { "email": "...", "password": "..." }; sahi ho to email par login code
+async function requestLoginOtp(req, res, next) {
+  try {
+    const { email, password } = req.body;
+
+    const result = await authService.requestLoginOtp({ email, password });
+
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /auth/login/verify-otp — body: { "email": "...", "otp": "123456" }; sahi ho to { message, token, user } + refresh cookie
+async function verifyLoginOtp(req, res, next) {
+  try {
+    const { email, otp } = req.body;
+
+    const { message, token, refreshToken, user } = await authService.verifyLoginOtp({ email, otp });
+
+    // refresh token sirf cookie mein — JSON body mein kabhi nahi
+    setRefreshCookie(res, refreshToken);
+    res.status(200).json({ message, token, user });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // POST /auth/refresh — body nahi, refresh token cookie se aata hai
 async function refresh(req, res, next) {
   try {
@@ -112,6 +140,8 @@ async function resendVerification(req, res, next) {
 module.exports = {
   register,
   login,
+  requestLoginOtp,
+  verifyLoginOtp,
   refresh,
   logout,
   verifyEmail,
