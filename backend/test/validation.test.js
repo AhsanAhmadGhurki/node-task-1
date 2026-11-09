@@ -88,13 +88,13 @@ test("unique index: ek saath 5 register (alag case) → DB mein sirf 1 user", as
 
 test("login: alag case aur spaces wali email se bhi login (normalize ho kar)", async () => {
   await ctx.verifiedAccount("login-case@example.test");
-  const res = await post("/auth/login", { email: "  LOGIN-Case@Example.TEST ", password: PASSWORD });
+  const res = await ctx.login({ email: "  LOGIN-Case@Example.TEST ", password: PASSWORD });
   assert.equal(res.status, 200);
   assert.equal(res.json.user.email, "login-case@example.test");
 });
 
 test("login: ghalat email format aur khaali password → dono galtiyan ek saath", async () => {
-  const res = await post("/auth/login", { email: "not-an-email", password: "" });
+  const res = await ctx.login({ email: "not-an-email", password: "" });
   assert.equal(res.status, 400);
   assert.deepEqual(res.json.errors, [
     { field: "email", message: "Please enter a valid email address" },
@@ -104,7 +104,7 @@ test("login: ghalat email format aur khaali password → dono galtiyan ek saath"
 
 test("login: purane (kamzor) password rules login par nahi lagte — sirf required + 72 bytes", async () => {
   // sahi format, account nahi — validation pass, phir generic 401 (400 nahi)
-  const res = await post("/auth/login", { email: "nobody@example.test", password: "short" });
+  const res = await ctx.login({ email: "nobody@example.test", password: "short" });
   assert.equal(res.status, 401);
 });
 
@@ -179,6 +179,6 @@ test("strong password: login par nahi lagta — purana kamzor password wala user
   // naye rules se pehle bana user — seedha DB mein (register ab ye password qabool nahi karta)
   const password = await require("bcryptjs").hash("oldpass123", 12);
   await users().create({ email: "old-user@example.test", password, isVerified: true });
-  const res = await post("/auth/login", { email: "old-user@example.test", password: "oldpass123" });
+  const res = await ctx.login({ email: "old-user@example.test", password: "oldpass123" });
   assert.equal(res.status, 200);
 });

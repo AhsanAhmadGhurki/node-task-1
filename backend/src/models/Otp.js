@@ -19,6 +19,9 @@ const otpSchema = new mongoose.Schema(
     // bcrypt hash — asal code sirf email mein, DB leak ho to bhi code nahi milta
     // code use ho jaye ya 5 galat koshishen ho jayein to $unset — "code hai hi nahi"
     otpHash: String,
+    // sirf "login" — request-otp ke loginToken ka SHA-256; verify-otp isi se code dhoondta hai
+    // (token sirf sahi password dene wale ko milta hai — email jaanne wala code par koshish hi nahi kar sakta)
+    challengeHash: String,
     // code ki umar — 5 minute
     expiresAt: Date,
     // is code par galat koshishen — 5 par code band
@@ -47,6 +50,8 @@ const otpSchema = new mongoose.Schema(
 
 // ek user, ek purpose, ek document — naya code purane ko overwrite karta hai (purana foran band)
 otpSchema.index({ user: 1, purpose: 1 }, { unique: true });
+// verify-otp loginToken ke hash se dhoondta hai — sirf login wale documents mein hota hai (sparse)
+otpSchema.index({ challengeHash: 1 }, { sparse: true });
 
 // "Otp" model — collection ka naam "otps" hoga
 module.exports = mongoose.model("Otp", otpSchema);

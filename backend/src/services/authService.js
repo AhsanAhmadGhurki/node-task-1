@@ -30,10 +30,12 @@ const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const REFRESH_REUSE_GRACE_MS = 30 * 1000;
 
 // email ke codes — 6 digit: register ke baad email verify ("verify-email"), aur login ka doosra qadam ("login", 2FA)
-// 5 minute chalta hai, 5 galat koshishon par band, aur ek user ghante mein 3 hi maang sakta hai
+// 5 minute chalta hai, 5 galat koshishon par band, aur ek user ghante mein itne hi maang sakta hai
 const OTP_TTL_MS = config.otpTtlMs;
 const OTP_MAX_ATTEMPTS = 5;
-const OTP_MAX_REQUESTS = 3;
+// verify-email 3 — ek dafa ka kaam; login 10 — har login (logout/login, doosra device) naya code maangta hai,
+// 3 par aam user ghante mein 4th login par band ho jaata. login code sirf sahi password par banta hai, to spam bhi sirf password wala kar sakta hai
+const OTP_MAX_REQUESTS = { "verify-email": 3, login: 10 };
 const OTP_WINDOW_MS = 60 * 60 * 1000;
 // bcrypt — code sirf 10 lakh mein se ek hai, SHA-256 hota to DB leak par second mein toot jaata
 // cost 10 (password wale 12 se kam) — code 5 minute ka hai, har request par 250ms kyun lagayein
@@ -64,7 +66,9 @@ function normalizeEmail(email) {
 
 // naya code banao, hash save karo, ginti badhao — code lautata hai (email ke liye), had poori ho to 429
 // purpose: "verify-email" ya "login" — dono ka document aur ghante ki ginti alag
-async function issueOtp(userId, purpose) {
+// extra — code ke saath save hone wale fields (login ka challengeHash); naya code purane ko bhi overwrite karta hai
+async function issueOtp(userId, purpose, extra = {}) {
+  const maxRequests = OTP_MAX_REQUESTS[purpose];
   // crypto.randomInt — Math.random andaza lagane layak hai; padStart taake "000123" bhi 6 digit rahe
   const otp = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
   const otpHash = await bcrypt.hash(otp, OTP_SALT_ROUNDS);
@@ -75,14 +79,15 @@ async function issueOtp(userId, purpose) {
     otpHash,
     expiresAt: new Date(now.getTime() + OTP_TTL_MS),
     attempts: 0,
-    purgeAt: new Date(now.getTime() + OTP_WINDOW_MS)
+    purgeAt: new Date(now.getTime() + OTP_WINDOW_MS),
+    ...extra
   };
 
   // ginti aur naya code ek hi query mein — do requests ek saath aayein to bhi 3 se zyada na niklein
   // 1) window chal rahi hai aur 3 se kam maange
   const inWindow = () =>
     Otp.updateOne(
-      { user: userId, purpose, windowStart: { $gt: windowOpenedAfter }, requestCount: { $lt: OTP_MAX_REQUESTS } },
+      { user: userId, purpose, windowStart: { $gt: windowOpenedAfter }, requestCount: { $lt: maxRequests } },
       { $set: freshCode, $inc: { requestCount: 1 } }
     );
 
@@ -124,13 +129,15 @@ async function issueOtp(userId, purpose) {
 
 // code check karo — sahi ho to code khatam (ek hi dafa chalta hai), galat ho to `invalid` throw
 // har galat soorat (code nahi, expire, koshishen khatam, galat code) mein wahi `invalid` — kya galat tha nahi batate
-async function consumeOtp(userId, purpose, otp, invalid) {
+// match — aur shartein (login: challengeHash, taake sirf password dene wala hi is code par koshish kar sake)
+async function consumeOtp(userId, purpose, otp, invalid, match = {}) {
   // koshish pehle "book" karo, phir compare — warna 20 parallel requests sab "attempts < 5" dekh letin
   // code ho, expire na hua ho, 5 se kam koshishen — teeno check aur attempts+1 ek hi query mein
   const record = await Otp.findOneAndUpdate(
     {
       user: userId,
       purpose,
+      ...match,
       otpHash: { $exists: true },
       expiresAt: { $gt: new Date() },
       attempts: { $lt: OTP_MAX_ATTEMPTS }
@@ -151,7 +158,7 @@ async function consumeOtp(userId, purpose, otp, invalid) {
   if (!isMatch) {
     // 5vi galat koshish — code band (sirf yahi code; agar beech mein naya aa gaya to use nahi chhedte)
     if (record.attempts >= OTP_MAX_ATTEMPTS) {
-      await Otp.updateOne({ _id: record._id, otpHash: record.otpHash }, { $unset: { otpHash: 1, expiresAt: 1 } });
+      await Otp.updateOne({ _id: record._id, otpHash: record.otpHash }, { $unset: { otpHash: 1, expiresAt: 1, challengeHash: 1 } });
     }
     throw invalid;
   }
@@ -159,7 +166,7 @@ async function consumeOtp(userId, purpose, otp, invalid) {
   // consume bhi atomic — do sahi requests ek saath aayein to sirf ek kamyab
   const consumed = await Otp.updateOne(
     { _id: record._id, otpHash: record.otpHash },
-    { $unset: { otpHash: 1, expiresAt: 1 }, $set: { attempts: 0 } }
+    { $unset: { otpHash: 1, expiresAt: 1, challengeHash: 1 }, $set: { attempts: 0 } }
   );
   if (consumed.modifiedCount === 0) {
     throw invalid;
@@ -381,51 +388,50 @@ async function userExists(userId) {
   return Boolean(await User.exists({ _id: userId }));
 }
 
-// POST /auth/login — email + password sahi aur email verified ho to tokens
-async function login({ email, password }) {
-  const user = await checkCredentials({ email, password });
-
-  const token = signAccessToken(user);
-  const refreshToken = await issueRefreshToken(user._id);
-
-  return { token, refreshToken, user };
-}
-
-// login ka code bhej diya — kitni der chalega bhi batao (frontend aur Swagger dono ke kaam ka)
+// login ka code bhej diya
 const LOGIN_CODE_SENT = "A login code has been sent to your email.";
 
 // POST /auth/login/request-otp — 2FA ka pehla qadam: email + password sahi hon to email par login code
-// checkCredentials wahi hai jo /auth/login mein: 401 (ghalat), 423 (lock), 403 (unverified) — password ke baad
-// code sirf sahi password wale ko — is liye ghante ki had (3) ka 429 yahan chhupana nahi padta (account pehle hi saabit)
+// checkCredentials (401 ghalat, 423 lock, 403 unverified — password ke baad) — /auth/login wala hi
+// code ke saath loginToken bhi: random, sirf isi jawab mein (DB mein SHA-256). verify-otp ise maangta hai —
+// warna sirf email jaanne wala bhi 5 ghalat koshishon se asli malik ka code jala deta, aur har naya code bhi
 async function requestLoginOtp({ email, password }) {
   const user = await checkCredentials({ email, password });
 
+  const loginToken = crypto.randomBytes(32).toString("hex");
   // had poori ho to TooManyRequestsError (429, retryAfter ke saath) — seedha errorHandler tak
-  const otp = await issueOtp(user._id, "login");
+  const otp = await issueOtp(user._id, "login", { challengeHash: hashToken(loginToken) });
 
   // await nahi — register ki tarah response email ka intezar nahi karta
   emailService.sendOtpEmail(user.email, otp, "login");
 
-  return { message: LOGIN_CODE_SENT, expiresInSeconds: Math.round(OTP_TTL_MS / 1000) };
+  return { message: LOGIN_CODE_SENT, loginToken, expiresInSeconds: Math.round(OTP_TTL_MS / 1000) };
 }
 
-// verify-otp ki har galti ka ek hi jawab — user nahi / unverified / ghalat / expire / istemal shuda code
+// verify-otp ki har galti ka ek hi jawab — ghalat/purana loginToken, ghalat/expire/istemal shuda code
 const INVALID_LOGIN_CODE = "Invalid or expired code";
 
-// POST /auth/login/verify-otp — 2FA ka doosra qadam: email + code sahi to tokens (login jaisa)
-// password dobara nahi — code sirf request-otp (sahi password) ke baad hi banta hai, aur email ke malik ko jaata hai
-async function verifyLoginOtp({ email, otp }) {
+// POST /auth/login/verify-otp — 2FA ka doosra qadam: loginToken + code sahi to tokens (login jaisa)
+// email nahi maangte — loginToken hi batata hai kaun sa user (aur sirf password dene wale ke paas hai)
+async function verifyLoginOtp({ loginToken, otp }) {
   const invalid = new BadRequestError(INVALID_LOGIN_CODE);
+  const challengeHash = hashToken(loginToken);
 
-  const user = await User.findOne({ email: normalizeEmail(email) });
-  if (!user || !user.isVerified) {
-    // asli code check jitna waqt — warna jaldi jawab bata deta ke account nahi hai
+  const challenge = await Otp.findOne({ purpose: "login", challengeHash }, { user: 1 });
+  if (!challenge) {
+    // asli code check jitna waqt — har fail raasta ek hi bcrypt.compare
     await bcrypt.compare(otp, DUMMY_OTP_HASH);
     throw invalid;
   }
 
-  // 5 koshishen, 5 minute, ek hi dafa — verify-email wala hi atomic consume
-  await consumeOtp(user._id, "login", otp, invalid);
+  // 5 koshishen, 5 minute, ek hi dafa — sirf isi loginToken wale code par (naya request-otp purana token band kar deta hai)
+  await consumeOtp(challenge.user, "login", otp, invalid, { challengeHash });
+
+  // beech mein user delete ho gaya — tokens nahi
+  const user = await User.findById(challenge.user);
+  if (!user || !user.isVerified) {
+    throw invalid;
+  }
 
   const token = signAccessToken(user);
   const refreshToken = await issueRefreshToken(user._id);
@@ -517,7 +523,6 @@ async function logout(refreshToken) {
 module.exports = {
   register,
   verifyEmail,
-  login,
   requestLoginOtp,
   verifyLoginOtp,
   refreshSession,

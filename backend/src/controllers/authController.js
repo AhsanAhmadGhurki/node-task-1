@@ -39,22 +39,13 @@ function setRefreshCookie(res, refreshToken) {
   res.cookie(REFRESH_COOKIE, refreshToken, { ...refreshCookieOptions, maxAge: authService.REFRESH_TOKEN_TTL_MS });
 }
 
-// POST /auth/login — body: { "email": "...", "password": "..." }
-async function login(req, res, next) {
-  try {
-    const { email, password } = req.body;
-
-    const { token, refreshToken, user } = await authService.login({ email, password });
-
-    // refresh token sirf cookie mein — JSON body mein kabhi nahi
-    setRefreshCookie(res, refreshToken);
-    res.status(200).json({ token, user });
-  } catch (err) {
-    next(err);
-  }
+// POST /auth/login — sirf password se seedha token ab nahi (warna 2FA chhoda ja sakta tha); 410 + naya rasta
+function loginDisabled(req, res) {
+  res.status(410).json({ message: "Password-only login is disabled. Use POST /auth/login/request-otp, then POST /auth/login/verify-otp." });
 }
 
 // POST /auth/login/request-otp — body: { "email": "...", "password": "..." }; sahi ho to email par login code
+// jawab { message, loginToken, expiresInSeconds } — loginToken verify-otp ke saath wapas bhejna hai
 async function requestLoginOtp(req, res, next) {
   try {
     const { email, password } = req.body;
@@ -67,12 +58,12 @@ async function requestLoginOtp(req, res, next) {
   }
 }
 
-// POST /auth/login/verify-otp — body: { "email": "...", "otp": "123456" }; sahi ho to { message, token, user } + refresh cookie
+// POST /auth/login/verify-otp — body: { "loginToken": "<request-otp wala>", "otp": "123456" }; sahi ho to { message, token, user } + refresh cookie
 async function verifyLoginOtp(req, res, next) {
   try {
-    const { email, otp } = req.body;
+    const { loginToken, otp } = req.body;
 
-    const { message, token, refreshToken, user } = await authService.verifyLoginOtp({ email, otp });
+    const { message, token, refreshToken, user } = await authService.verifyLoginOtp({ loginToken, otp });
 
     // refresh token sirf cookie mein — JSON body mein kabhi nahi
     setRefreshCookie(res, refreshToken);
@@ -139,7 +130,7 @@ async function resendVerification(req, res, next) {
 
 module.exports = {
   register,
-  login,
+  loginDisabled,
   requestLoginOtp,
   verifyLoginOtp,
   refresh,

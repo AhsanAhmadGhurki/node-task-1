@@ -41,10 +41,10 @@ export default function Login() {
     setLoading(true)
     setNotice(null)
     try {
-      const { message } = await requestLoginOtp(creds.email, creds.password)
-      setAlert({ ok: true, status: 200, text: message })
+      const challenge = await requestLoginOtp(creds.email, creds.password)
+      setAlert({ ok: true, status: 200, text: challenge.message })
       setVerifyCreds(null)
-      setCodeCreds(creds)
+      setCodeCreds({ ...creds, challenge })
     } catch (error) {
       setAlert(toAlert(error))
       setVerifyCreds(error.response?.status === 403 ? creds : null)
@@ -81,6 +81,7 @@ export default function Login() {
           key={codeCreds.email}
           email={codeCreds.email}
           password={codeCreds.password}
+          challenge={codeCreds.challenge}
           onResult={setAlert}
           onLoggedIn={startSession}
         />

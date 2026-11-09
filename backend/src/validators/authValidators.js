@@ -72,9 +72,10 @@ const loginRules = [
 ];
 
 // POST /auth/login/request-otp — login jaise hi rules (email + password), code isi ke baad jaata hai
-// POST /auth/login/verify-otp — email + bilkul 6 digit ka code (password nahi, wo request-otp par check ho chuka)
+// POST /auth/login/verify-otp — request-otp ka loginToken (64 hex) + bilkul 6 digit ka code
+// email/password nahi — password request-otp par check ho chuka, loginToken hi user batata hai
 const verifyLoginOtpRules = [
-  requiredString("email", "Email").trim().toLowerCase().notEmpty().withMessage("Email is required"),
+  requiredString("loginToken", "Login token").matches(/^[a-f0-9]{64}$/).withMessage("Invalid login token"),
   requiredString("otp", "Code").matches(/^\d{6}$/).withMessage("Code must be 6 digits")
 ];
 

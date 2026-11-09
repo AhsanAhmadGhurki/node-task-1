@@ -110,6 +110,17 @@ function setupTestApp(name, { realLimiters = false } = {}) {
     await mongoose.disconnect();
   };
 
+  // login (2FA) — request-otp, phir inbox wala code + loginToken se verify-otp
+  // purane POST /auth/login jaisa jawab: pehla qadam fail (400/401/403/423/429) ho to wahi, warna verify-otp ka (token + cookie)
+  ctx.login = async ({ email, password }) => {
+    const requested = await ctx.post("/auth/login/request-otp", { email, password });
+    if (requested.status !== 200) {
+      return requested;
+    }
+    const otp = sentEmails.filter((m) => m.purpose === "login").at(-1).otp;
+    return ctx.post("/auth/login/verify-otp", { loginToken: requested.json.loginToken, otp });
+  };
+
   // register + inbox wala code se verify — verified account aur uska token
   ctx.verifiedAccount = async (email, password = "Valid1234!") => {
     await ctx.post("/auth/register", { email, password });

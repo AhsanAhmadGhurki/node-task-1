@@ -14,8 +14,10 @@ function formatWait(seconds) {
 }
 
 // email + password — login form ka jo request-otp par bheja tha (naya code bhi isi se)
+// challenge — request-otp ka jawab { loginToken, expiresInSeconds }; naya code naya loginToken deta hai (purana band)
 // onResult — parent apne Alert mein backend ka jawab dikhata hai
-export default function LoginCode({ email, password, onResult, onLoggedIn }) {
+export default function LoginCode({ email, password, challenge: firstChallenge, onResult, onLoggedIn }) {
+  const [challenge, setChallenge] = useState(firstChallenge)
   const [otp, setOtp] = useState('')
   const [busy, setBusy] = useState(false)
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS)
@@ -31,7 +33,7 @@ export default function LoginCode({ email, password, onResult, onLoggedIn }) {
     e.preventDefault()
     setBusy(true)
     try {
-      const data = await verifyLoginOtp(email, otp)
+      const data = await verifyLoginOtp(challenge.loginToken, otp)
       // busy wapas false nahi — parent dashboard par le jaata hai, ye component hat jaata hai
       onLoggedIn(data)
     } catch (error) {
@@ -43,8 +45,9 @@ export default function LoginCode({ email, password, onResult, onLoggedIn }) {
   async function handleResend() {
     setBusy(true)
     try {
-      const { message } = await requestLoginOtp(email, password)
-      onResult({ ok: true, status: 200, text: message })
+      const next = await requestLoginOtp(email, password)
+      setChallenge(next)
+      onResult({ ok: true, status: 200, text: next.message })
       setOtp('')
       setCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (error) {
@@ -59,11 +62,14 @@ export default function LoginCode({ email, password, onResult, onLoggedIn }) {
     }
   }
 
+  // backend batata hai code kitni der chalega — "5 minute" hardcode hota to config badalne par jhoot
+  const minutes = Math.max(1, Math.round(challenge.expiresInSeconds / 60))
+
   return (
     <form className={form} onSubmit={handleVerify}>
       <p className="m-0 text-sm leading-relaxed text-muted">
         <strong className="font-medium text-text wrap-anywhere">{email}</strong> par 6-digit login code bheja gaya hai (Spam
-        bhi dekhein). 5 minute tak chalega.
+        bhi dekhein). {minutes} minute tak chalega.
       </p>
       <div className={field}>
         <label htmlFor="login-otp" className={label}>

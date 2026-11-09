@@ -9,7 +9,7 @@ const { mongoose, post } = ctx;
 const PASSWORD = "Valid1234!";
 const WRONG = "Wrong1234";
 
-const login = (email, password) => post("/auth/login", { email, password });
+const login = (email, password) => ctx.login({ email, password });
 const userDoc = (email) => mongoose.model("User").findOne({ email }).lean();
 
 before(() => ctx.start());
@@ -28,7 +28,7 @@ test("5 galat → 5vi par 423; band waqt mein SAHI password bhi 423, na token na
   assert.equal(fifth.status, 423);
   assert.equal(fifth.json.message, "Account locked due to too many failed login attempts. Try again in 15 minutes.");
 
-  const correct = await fetch(`${ctx.baseUrl}/auth/login`, {
+  const correct = await fetch(`${ctx.baseUrl}/auth/login/request-otp`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": ctx.config.apiKey },
     body: JSON.stringify({ email: "lock@example.com", password: PASSWORD })

@@ -44,7 +44,7 @@ test("duplicate VERIFIED email → 409, chahe case/spaces alag hon, koi email na
   }
   assert.equal(sentEmails.length, 0);
   // password nahi badla — purane se login hota hai
-  assert.equal((await post("/auth/login", { email: "verified@example.com", password: PASSWORD })).status, 200);
+  assert.equal((await ctx.login({ email: "verified@example.com", password: PASSWORD })).status, 200);
 });
 
 test("duplicate UNVERIFIED email → 200 generic (201 nahi), naya code; ghante mein 3 ke baad chup", async () => {
@@ -84,10 +84,11 @@ test("verify → seedha login (token + httpOnly refresh cookie); logout ke baad 
   assert.equal((await post("/auth/verify-email", { email: "flow@example.com", otp, password: PASSWORD })).status, 400);
 
   sentEmails.length = 0;
-  const login = await post("/auth/login", { email: "Flow@Example.com", password: PASSWORD });
+  const login = await ctx.login({ email: "Flow@Example.com", password: PASSWORD });
   assert.equal(login.status, 200);
   assert.ok(login.json.token);
-  assert.equal(sentEmails.length, 0, "login par koi code/email nahi");
+  // 2FA — login par sirf ek "login" code, verify wala koi nahi
+  assert.deepEqual(sentEmails.map((m) => m.purpose), ["login"]);
 });
 
 test("squatting: kisi aur ka email pehle register karne wale ka password nahi chalta", async () => {
@@ -99,8 +100,8 @@ test("squatting: kisi aur ka email pehle register karne wale ka password nahi ch
 
   // asli malik (inbox wala) apne password ke saath verify karta hai
   assert.equal((await post("/auth/verify-email", { email: "victim@example.com", otp, password: "Victim1234!" })).status, 200);
-  assert.equal((await post("/auth/login", { email: "victim@example.com", password: "Attacker123!" })).status, 401);
-  assert.equal((await post("/auth/login", { email: "victim@example.com", password: "Victim1234!" })).status, 200);
+  assert.equal((await ctx.login({ email: "victim@example.com", password: "Attacker123!" })).status, 401);
+  assert.equal((await ctx.login({ email: "victim@example.com", password: "Victim1234!" })).status, 200);
 });
 
 test("5 galat koshishon ke baad code band; resend ke baad purana code band", async () => {
@@ -161,15 +162,15 @@ test("OTP timing: active code na ho tab bhi bcrypt.compare chalta hai (dummy) �
 
 test("login: unknown aur galat password ka ek hi 401; unverified + sahi password → 403", async () => {
   await registerAndVerify("known@example.com");
-  const unknown = await post("/auth/login", { email: "nobody@example.com", password: PASSWORD });
-  const wrong = await post("/auth/login", { email: "known@example.com", password: "Wrong1234" });
+  const unknown = await ctx.login({ email: "nobody@example.com", password: PASSWORD });
+  const wrong = await ctx.login({ email: "known@example.com", password: "Wrong1234" });
   assert.equal(unknown.status, 401);
   assert.equal(wrong.status, 401);
   assert.equal(unknown.text, wrong.text);
 
   await post("/auth/register", { email: "unverified@example.com", password: PASSWORD });
-  assert.equal((await post("/auth/login", { email: "unverified@example.com", password: PASSWORD })).status, 403);
-  assert.equal((await post("/auth/login", { email: "unverified@example.com", password: "Wrong1234" })).status, 401);
+  assert.equal((await ctx.login({ email: "unverified@example.com", password: PASSWORD })).status, 403);
+  assert.equal((await ctx.login({ email: "unverified@example.com", password: "Wrong1234" })).status, 401);
 });
 
 test("validation kamzor nahi hui", async () => {
@@ -188,7 +189,7 @@ test("validation kamzor nahi hui", async () => {
   const otp = await post("/auth/verify-email", { email: "v@example.com", otp: 123456, password: PASSWORD });
   assert.equal(otp.status, 400);
   assert.equal(otp.json.message, "Code must be a string");
-  assert.equal((await post("/auth/login", { email: "v@example.com", password: "A1" + "x".repeat(71) })).status, 400);
+  assert.equal((await ctx.login({ email: "v@example.com", password: "A1" + "x".repeat(71) })).status, 400);
 });
 
 test("routes: sab /auth/* par, purane root paths alias ki tarah chalte hain", async () => {
@@ -263,8 +264,8 @@ test("unverified email dobara register → password NAHI badalta, sirf naya code
   assert.equal(codesFor("keep@example.com").length, 2);
 
   // pehla password abhi bhi account ka hai — 403 (sahi password, lekin unverified); doosra 401
-  assert.equal((await post("/auth/login", { email: "keep@example.com", password: "FirstPass1!" })).status, 403);
-  assert.equal((await post("/auth/login", { email: "keep@example.com", password: "SecondPass2!" })).status, 401);
+  assert.equal((await ctx.login({ email: "keep@example.com", password: "FirstPass1!" })).status, 403);
+  assert.equal((await ctx.login({ email: "keep@example.com", password: "SecondPass2!" })).status, 401);
 });
 
 test("email ka text: expiry config se (hardcode nahi), code text + html dono mein", () => {
@@ -326,7 +327,7 @@ test("refresh: rotation; galat / missing / expired / logout wala token → 401",
   assert.equal((await withCookie("/auth/refresh", second)).status, 401);
 
   // expired (TTL index ke hatane se pehle bhi band)
-  const third = cookieToken((await post("/auth/login", { email: "rotate@example.com", password: PASSWORD })).cookie);
+  const third = cookieToken((await ctx.login({ email: "rotate@example.com", password: PASSWORD })).cookie);
   await RefreshToken().updateOne({ tokenHash: hashOf(third) }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
   assert.equal((await withCookie("/auth/refresh", third)).status, 401);
 });

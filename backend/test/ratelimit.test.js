@@ -48,7 +48,7 @@ test("login: account lockout (5) IP limit (50) se pehle — ek account ki galtiy
     { email: "ip-a@example.com", password: passwordHash, isVerified: true },
     { email: "ip-b@example.com", password: passwordHash, isVerified: true }
   ]);
-  const login = (email, password) => ctx.post("/auth/login", { email, password });
+  const login = (email, password) => ctx.login({ email, password });
 
   // ek account par 5 galat → account lock (423), IP limit nahi (429)
   const statuses = [];

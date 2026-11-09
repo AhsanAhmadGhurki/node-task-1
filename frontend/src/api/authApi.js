@@ -12,15 +12,16 @@ export async function register(email, password) {
 }
 
 // POST /auth/login/request-otp — 2FA ka pehla qadam: email + password sahi hon to email par login code
-// { message, expiresInSeconds }; 401 ghalat, 403 unverified, 423 lock, 429 { retryAfter } (ghante mein 3 codes)
+// { message, loginToken, expiresInSeconds }; 401 ghalat, 403 unverified, 423 lock, 429 { retryAfter } (ghante mein 10 codes)
+// loginToken sirf memory (state) mein — verify-otp ke saath wapas; localStorage mein nahi, code ke baad bekaar
 export async function requestLoginOtp(email, password) {
   const { data } = await api.post('/auth/login/request-otp', { email, password })
   return data
 }
 
-// POST /auth/login/verify-otp — email + 6-digit code; sahi ho to { message, token, user } + refresh cookie (login jaisa)
-export async function verifyLoginOtp(email, otp) {
-  const { data } = await api.post('/auth/login/verify-otp', { email, otp })
+// POST /auth/login/verify-otp — request-otp ka loginToken + 6-digit code; sahi ho to { message, token, user } + refresh cookie
+export async function verifyLoginOtp(loginToken, otp) {
+  const { data } = await api.post('/auth/login/verify-otp', { loginToken, otp })
   return data
 }
 

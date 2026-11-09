@@ -27,12 +27,12 @@ router.post(
   authController.resendVerification
 );
 
-// login par limit — validation se pehle, taake khaali/ghalat body wali koshishen bhi ginein
-router.post("/auth/login", loginLimiter, loginRules, handleValidation, authController.login);
+// purana password-only login band — 410 (404 nahi, taake purana client saaf jaane ke kya karna hai)
+router.post("/auth/login", authController.loginDisabled);
 
-// 2FA login — pehle password (code email par), phir code (tokens)
-// wahi loginLimiter instance — /auth/login aur request-otp ki galat koshishen ek hi ginti mein (ek se doosre par ja kar limit nahi bachti)
-// email ka spam: code sirf sahi password par, aur user ki 3/ghanta ginti DB mein (429 + retryAfter)
+// 2FA login — pehle password (code email par + loginToken), phir loginToken + code (tokens)
+// login par limit — validation se pehle, taake khaali/ghalat body wali koshishen bhi ginein
+// email ka spam: code sirf sahi password par, aur user ki 10/ghanta ginti DB mein (429 + retryAfter)
 router.post("/auth/login/request-otp", loginLimiter, loginRules, handleValidation, authController.requestLoginOtp);
 // code guess — wahi otpVerifyLimiter (verify-email ke saath ek ginti), aur har code par 5 koshishen DB mein
 router.post("/auth/login/verify-otp", otpVerifyLimiter, verifyLoginOtpRules, handleValidation, authController.verifyLoginOtp);
