@@ -14,6 +14,9 @@ test("/api-docs bina API key ke khulta hai (HTML), spec OpenAPI 3 aur dono secur
   assert.equal(page.status, 200);
   assert.match(page.headers.get("content-type"), /text\/html/);
   assert.match(await page.text(), /swagger-ui/);
+  // key/token browser ke localStorage mein na rahein (shared computer) — init script mein setting
+  const init = await (await fetch(`${ctx.baseUrl}/api-docs/swagger-ui-init.js`)).text();
+  assert.match(init, /"persistAuthorization": false/);
   // "Try it out" ki tasveer (blob: URL) — docs page par ijazat, warna toota icon; baaki API par nahi
   assert.match(page.headers.get("content-security-policy"), /img-src 'self' data: blob:/);
   const api = await fetch(`${ctx.baseUrl}/auth/refresh`, { method: "POST", headers: { "x-api-key": ctx.config.apiKey } });
