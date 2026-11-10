@@ -1,0 +1,346 @@
+# reusable hisse — routes ke @openapi comments inhein "$ref" se use karte hain, har jagah JSON dobara nahi likhte
+# swagger-jsdoc (openapi.js ki "apis") is file ko bhi padhta hai aur components ko spec mein mila deta hai
+# shakal asli jawabon se li gayi hai (probe se) — code badle to yahan bhi badlo
+components:
+  schemas:
+    # har error ka jawab — errorHandler hamesha { message } bhejta hai
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: Invalid or expired token
+
+    # express-validator (middleware/validate.js) wale 400 — har ghalat field ki ek galti, message = pehli galti
+    ValidationError:
+      type: object
+      required: [message, errors]
+      properties:
+        message:
+          type: string
+          description: Pehli galti — sirf message padhne wale purane clients ke liye
+          example: Please enter a valid email address
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+                description: Field ka naam; poori body ka rule ho to "body"
+                example: email
+              message:
+                type: string
+                example: Please enter a valid email address
+
+    # 429 (aur 423) — middleware/rateLimit.js, TooManyRequestsError, LockedError sab yahi shakal
+    RateLimitError:
+      type: object
+      required: [message, retryAfter, resetAt]
+      properties:
+        message:
+          type: string
+          description: Insaan ke liye — bacha hua waqt minutes mein
+          example: Too many failed login attempts from this network. Please try again in 15 minutes.
+        retryAfter:
+          type: integer
+          minimum: 1
+          description: Kitne second baad dobara koshish karein — Retry-After header ke barabar
+          example: 886
+        resetAt:
+          type: string
+          format: date-time
+          description: Kab dobara koshish ho sakti hai (ISO 8601, UTC)
+          example: 2026-11-10T08:42:16.963Z
+
+    # User.toJSON — password, failedLoginAttempts, lockUntil kabhi nahi aate
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6af2f02fa249d02b97a568ba
+        email:
+          type: string
+          format: email
+          example: user@example.test
+        isVerified:
+          type: boolean
+          example: true
+        avatar:
+          type: string
+          nullable: true
+          description: Profile picture ka fileId — tasveer GET /files/{fileId} se; null = koi picture nahi
+          example: 6af2f031a249d02b97a568c1
+        name:
+          type: string
+          nullable: true
+          minLength: 2
+          maxLength: 50
+          example: Ali Khan
+        phone:
+          type: string
+          nullable: true
+          pattern: '^03\d{9}$'
+          example: "03001234567"
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-10T10:21:35.727Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2026-11-10T10:21:36.422Z
+        __v:
+          type: integer
+          example: 0
+
+    Task:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6af2f031a249d02b97a568c0
+        title:
+          type: string
+          maxLength: 200
+          example: Buy milk
+        completed:
+          type: boolean
+          example: false
+        user:
+          type: string
+          description: Owner ka _id — hamesha token se, body se kabhi nahi
+          example: 6af2f02fa249d02b97a568ba
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-10T10:21:37.119Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2026-11-10T10:21:37.119Z
+        __v:
+          type: integer
+          example: 0
+
+    # ticket ki file — _id hi GET /files/{fileId} ka fileId (server par rakha naam kabhi nahi aata)
+    Attachment:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6af2f044a99254255b674962
+        originalName:
+          type: string
+          maxLength: 255
+          example: doc.pdf
+        mimetype:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+          example: application/pdf
+        size:
+          type: integer
+          description: Bytes
+          example: 50
+
+    Ticket:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6af2f044a99254255b674961
+        title:
+          type: string
+          minLength: 5
+          maxLength: 100
+          example: Login issue here
+        description:
+          type: string
+          maxLength: 1000
+          example: I cannot login
+        user:
+          type: string
+          example: 6af2f043a99254255b674959
+        attachments:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/Attachment"
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-10T10:21:56.628Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2026-11-10T10:21:56.628Z
+        __v:
+          type: integer
+          example: 0
+
+    # login / verify jawab — refresh token body mein kabhi nahi, sirf httpOnly cookie mein
+    Session:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Logged in
+        token:
+          type: string
+          description: Access token (JWT, 15 minute) — Authorize → BearerAuth mein daalein
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWYyZjAyZmEyNDlkMDJiOTdhNTY4YmEifQ.signature
+        user:
+          $ref: "#/components/schemas/User"
+
+  # path ke {id} — sab 24 hex (MongoDB ObjectId); ghalat shakal par tasks/tickets 400 "Invalid _id", files 404
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: Task ka _id (24 hex)
+      schema:
+        type: string
+        example: 6af2f031a249d02b97a568c0
+    TicketId:
+      name: id
+      in: path
+      required: true
+      description: Ticket ka _id (24 hex)
+      schema:
+        type: string
+        example: 6af2f044a99254255b674961
+    FileId:
+      name: fileId
+      in: path
+      required: true
+      description: File ka _id — user.avatar ya ticket.attachments[]._id
+      schema:
+        type: string
+        example: 6af2f044a99254255b674962
+
+  headers:
+    RetryAfter:
+      description: Kitne second baad dobara koshish karein (body ke retryAfter jitna)
+      schema:
+        type: integer
+        example: 886
+    SetRefreshCookie:
+      description: Refresh token — httpOnly, SameSite=Strict, Path=/auth, 7 din. JavaScript nahi padh sakti; POST /auth/refresh khud bhejta hai
+      schema:
+        type: string
+        example: refreshToken=00edb7…; Max-Age=604800; Path=/auth; HttpOnly; SameSite=Strict
+
+  # poore jawab — har route ke 401/500 mein yahi, sirf $ref
+  responses:
+    # sirf API key wale routes (auth) — token ka sawal hi nahi
+    ApiKeyUnauthorized:
+      description: x-api-key ghalat ya na ho
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Invalid or missing API key
+
+    # token wale routes — API key ya Bearer token, teeno soorten
+    Unauthorized:
+      description: API key ya Bearer token ghalat/na ho, token expire, ya token ka user delete ho chuka
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            tokenMissing:
+              summary: Authorization header nahi
+              value:
+                message: Authentication token missing
+            tokenInvalid:
+              summary: Token ghalat, expire, ya user delete
+              value:
+                message: Invalid or expired token
+            apiKey:
+              summary: x-api-key ghalat ya na ho
+              value:
+                message: Invalid or missing API key
+
+    # JSON body wale routes — kharab JSON
+    InvalidJson:
+      description: Body JSON hi nahi
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Invalid JSON in request body
+
+    # express.json ki 100 KB had — message Express ka apna (chhote huroof)
+    JsonTooLarge:
+      description: JSON body 100 KB se badi
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: request entity too large
+
+    # tasks/tickets ke {id} ki ghalat shakal — Mongoose CastError (errorHandler)
+    InvalidId:
+      description: id 24 hex (ObjectId) nahi
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Invalid _id
+
+    # na ho ya kisi aur ka ho — dono 404 (403 nahi, id ka hona bhi na pata chale)
+    TaskNotFound:
+      description: Task nahi mila, ya kisi aur user ka hai
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Task not found
+
+    TicketNotFound:
+      description: Ticket nahi mila, ya kisi aur user ka hai
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Ticket not found
+
+    # na ho, ghalat id ki shakal, ya DB mein hai lekin disk par nahi — sab 404
+    FileNotFound:
+      description: File nahi mili (ghalat id ki shakal bhi 404, 400 nahi)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: File not found
+
+    # token sahi tha lekin user beech mein delete ho gaya (authMiddleware ke baad) — bahut kam hota hai
+    UserNotFound:
+      description: Token ka user beech mein delete ho gaya
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: User not found
+
+    ServerError:
+      description: Server ki anjaan galti (jaise DB band) — andar ki tafseel kabhi nahi bheji jaati
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Internal Server Error

@@ -2,6 +2,8 @@
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
+const swaggerUi = require("swagger-ui-express");
+const openapiSpec = require("./docs/openapi");
 const loggingMiddleware = require("./middleware/logger");
 const apiKeyMiddleware = require("./middleware/apiKey");
 const authMiddleware = require("./middleware/auth");
@@ -27,6 +29,18 @@ app.use(cookieParser());
 
 // har request log karo — routes se pehle hona zaroori hai
 app.use(loggingMiddleware);
+
+// API docs — API key se PEHLE: browser page khole to x-api-key header nahi bhej sakta (page hi na khulta)
+// sirf docs public hain; "Try it out" wali har request phir bhi apiKeyMiddleware se guzarti hai (key Authorize mein)
+// persistAuthorization — page refresh par daali hui key/token na mitein (browser ke localStorage mein, server par nahi)
+app.get("/api-docs.json", (req, res) => res.json(openapiSpec));
+// sirf docs page ka CSP — "Try it out" tasveer (GET /files) ko blob: URL bana kar <img> mein dikhata hai,
+// helmet ka default img-src ('self' data:) use rok deta (toota icon). baaki API ka CSP waisa hi
+app.use("/api-docs", helmet.contentSecurityPolicy({ directives: { "img-src": ["'self'", "data:", "blob:"] } }));
+app.use("/api-docs", swaggerUi.serve,swaggerUi.setup(openapiSpec, {
+  customSiteTitle: "TaskDesk API Docs",
+  swaggerOptions: { persistAuthorization: true }
+}));
 
 // logger ke baad — taake reject hone wali requests bhi log hon
 app.use(apiKeyMiddleware);
