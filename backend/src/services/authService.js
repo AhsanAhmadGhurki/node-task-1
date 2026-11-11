@@ -177,6 +177,12 @@ async function consumeOtp(userId, purpose, otp, invalid, match = {}) {
 // ek hi jawab, chahe code gaya ho ya ghante ki had (3) poori ho — had ka 429 batata ke yahan unverified account hai
 const REGISTER_PENDING_RESPONSE = { message: "If an account exists for this email, a verification code has been sent." };
 
+// EXPOSE_DEV_OTP=true (sirf non-production) ho to jawab mein code bhi — Postman/Newman runner email nahi parh sakta
+// warna kuch nahi, taake asal jawab ki shakal wahi rahe
+function devOtpField(otp) {
+  return config.exposeDevOtp ? { devOtp: otp } : {};
+}
+
 // POST /register — naya user unverified banta hai, email par verify ka code jaata hai
 // lautata hai: { created: true, user } (naya, 201) ya { created: false, message } (pehle se unverified, 200)
 async function register({ email, password }) {
@@ -225,7 +231,7 @@ async function register({ email, password }) {
   // (sendOtpEmail apne errors khud pakadta hai, isliye unhandled rejection nahi hoga)
   emailService.sendOtpEmail(user.email, otp, "verify-email");
 
-  return { created: true, user };
+  return { created: true, user, ...devOtpField(otp) };
 }
 
 // verify-email ki har galti ka ek hi jawab — "user nahi", "pehle se verified", "galat/expire code" alag hon
@@ -405,7 +411,7 @@ async function requestLoginOtp({ email, password }) {
   // await nahi — register ki tarah response email ka intezar nahi karta
   emailService.sendOtpEmail(user.email, otp, "login");
 
-  return { message: LOGIN_CODE_SENT, loginToken, expiresInSeconds: Math.round(OTP_TTL_MS / 1000) };
+  return { message: LOGIN_CODE_SENT, loginToken, expiresInSeconds: Math.round(OTP_TTL_MS / 1000), ...devOtpField(otp) };
 }
 
 // verify-otp ki har galti ka ek hi jawab — ghalat/purana loginToken, ghalat/expire/istemal shuda code

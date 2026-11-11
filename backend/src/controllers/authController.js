@@ -16,7 +16,8 @@ async function register(req, res, next) {
     }
 
     // 201 = naya user ban gaya — password toJSON mein hat jaata hai
-    res.status(201).json(result.user);
+    // devOtp sirf EXPOSE_DEV_OTP=true (non-production) par — Postman runner ke liye
+    res.status(201).json(result.devOtp ? { ...result.user.toJSON(), devOtp: result.devOtp } : result.user);
   } catch (err) {
     next(err);
   }

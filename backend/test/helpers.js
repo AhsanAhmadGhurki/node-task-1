@@ -5,6 +5,10 @@
 const path = require("node:path");
 const assert = require("node:assert/strict");
 
+// .env mein Postman ke liye EXPOSE_DEV_OTP=true ho sakta hai — tests hamesha asal (code-chhupa) jawab check karein
+// config kisi bhi require se pehle — is liye app/config se pehle yahin
+process.env.EXPOSE_DEV_OTP = "false";
+
 // upload tests ke liye har type ke asli shuru ke bytes (magic bytes) — server file-type se inhi ko pehchanta hai
 // PNG mein IHDR ke baad IDAT ka header bhi, taake file-type foran "png" bata de (APNG ki talaash mein poori file na padhe)
 const SIGNATURES = {

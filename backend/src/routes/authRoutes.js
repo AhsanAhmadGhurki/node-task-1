@@ -388,6 +388,7 @@ router.post("/auth/login", authController.loginDisabled);
  *                 message: { type: string }
  *                 loginToken: { type: string, description: "64 hex — sirf verify-otp ke saath; naya request-otp purana band kar deta hai" }
  *                 expiresInSeconds: { type: integer, description: Code kitni der chalega }
+ *                 devOtp: { type: string, description: "Sirf EXPOSE_DEV_OTP=true (non-production) par — Postman/Newman ke liye code" }
  *             example:
  *               message: A login code has been sent to your email.
  *               loginToken: 1e5c2a2a924dfc00db1144d6bb72b5f443c566a32cb407e6b22a94b01d85200d

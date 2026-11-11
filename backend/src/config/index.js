@@ -16,6 +16,9 @@ module.exports = {
   // email code kitni der chalta hai — authService (DB expiry) aur email ka text dono yahin se,
   // taake badalne par email galat waqt na bataye
   otpTtlMs: 5 * 60 * 1000,
+  // sirf development/Postman/Newman ke liye — register (201) aur login/request-otp ke jawab mein code bhi (devOtp),
+  // kyunki runner email nahi parh sakta; production mein validateEnv ise on hone hi nahi deta (yahan bhi dohri rok)
+  exposeDevOtp: process.env.EXPOSE_DEV_OTP === "true" && process.env.NODE_ENV !== "production",
   // signed file link (GET /files/:fileId?expires=&sig=) kitni der chalta hai — bina token wala link, is liye chhota
   signedUrlTtlSeconds: 10 * 60,
   // avatars ka folder (backend/uploads/avatars) — upload.js yahan save karta hai, userService yahin se mitata hai

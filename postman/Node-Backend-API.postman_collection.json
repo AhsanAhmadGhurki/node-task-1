@@ -1,0 +1,101 @@
+{
+  "info": {
+    "name": "Node Backend API Testing",
+    "description": "Auth, Tickets aur Files ke end-to-end tests. Environment (local/staging) select karke Collection Runner ya Newman se chalayein.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "x-api-key", "type": "string" },
+      { "key": "value", "value": "{{apiKey}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// collection-level test — har request ke baad khud chalta hai, is liye har request mein dobara likhna nahi padta",
+          "pm.test(\"Response time 800ms se kam\", () => {",
+          "  pm.expect(pm.response.responseTime).to.be.below(800);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "testPassword", "value": "Valid1234!", "type": "string" },
+    { "key": "userAEmail", "value": "", "type": "string" },
+    { "key": "userBEmail", "value": "", "type": "string" },
+    { "key": "ticketId", "value": "", "type": "string" },
+    { "key": "fileId", "value": "", "type": "string" },
+    { "key": "otherUserFileId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": []
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "No Token (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// API key sahi hai lekin Bearer token nahi — authMiddleware 401 deta hai",
+                  "pm.test(\"Status 401\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Message: token missing\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Authentication token missing\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/tickets"
+          }
+        },
+        {
+          "name": "No API Key (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// auth 'noauth' — collection ki x-api-key yahan inherit nahi hoti, to apiKey middleware pehle hi rok deta hai",
+                  "pm.test(\"Status 401\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Message: API key\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Invalid or missing API key\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/tickets"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files",
+      "item": []
+    }
+  ]
+}

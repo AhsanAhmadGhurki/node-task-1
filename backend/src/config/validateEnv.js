@@ -54,6 +54,14 @@ function validateEnv(env = process.env) {
     errors.push("SMTP_USER and SMTP_PASS are required when NODE_ENV=production (otherwise codes are printed to the logs)");
   }
 
+  // EXPOSE_DEV_OTP code ko API response mein daal deta hai — production mein on ho to koi bhi kisi ka account verify/login kar le
+  if (env.EXPOSE_DEV_OTP && env.EXPOSE_DEV_OTP !== "true" && env.EXPOSE_DEV_OTP !== "false") {
+    errors.push("EXPOSE_DEV_OTP must be true or false");
+  }
+  if (env.NODE_ENV === "production" && env.EXPOSE_DEV_OTP === "true") {
+    errors.push("EXPOSE_DEV_OTP must not be true when NODE_ENV=production (it returns login codes in API responses)");
+  }
+
   // dono optional — na hon to default (3000 / 465), lekin di gayi value galat ho to chupke se default nahi
   for (const name of ["PORT", "SMTP_PORT"]) {
     if (env[name]) {
