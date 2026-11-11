@@ -1,15 +1,17 @@
 {
   "info": {
     "name": "Node Backend API Testing",
-    "description": "Auth, Tickets aur Files ke end-to-end tests. Environment (local/staging) select karke Collection Runner ya Newman se chalayein.",
+    "description": "Auth, Tickets aur Files ke end-to-end tests. Environment (local/staging) select karke Collection Runner ya Newman se chalayein. Backend mein EXPOSE_DEV_OTP=true (sirf non-production) hona chahiye, taake OTP code response (devOtp) se mile.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
-    "type": "apikey",
-    "apikey": [
-      { "key": "key", "value": "x-api-key", "type": "string" },
-      { "key": "value", "value": "{{apiKey}}", "type": "string" },
-      { "key": "in", "value": "header", "type": "string" }
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
     ]
   },
   "event": [
@@ -27,17 +29,380 @@
     }
   ],
   "variable": [
-    { "key": "testPassword", "value": "Valid1234!", "type": "string" },
-    { "key": "userAEmail", "value": "", "type": "string" },
-    { "key": "userBEmail", "value": "", "type": "string" },
-    { "key": "ticketId", "value": "", "type": "string" },
-    { "key": "fileId", "value": "", "type": "string" },
-    { "key": "otherUserFileId", "value": "", "type": "string" }
+    {
+      "key": "testPassword",
+      "value": "Valid1234!",
+      "type": "string"
+    },
+    {
+      "key": "userAEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userBEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "verifyOtpA",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "verifyOtpB",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userBToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "loginToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "loginOtp",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ticketId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fileId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "otherUserFileId",
+      "value": "",
+      "type": "string"
+    }
   ],
   "item": [
     {
       "name": "Auth",
-      "item": []
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Register User A",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// har run mein naye users — fixed email doosre run mein 409 deta",
+                  "// @example.test — test data pehchanna aur baad mein mitana aasaan",
+                  "const id = Date.now();",
+                  "pm.collectionVariables.set(\"userAEmail\", `pm-a-${id}@example.test`);",
+                  "pm.collectionVariables.set(\"userBEmail\", `pm-b-${id}@example.test`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Naya user unverified hai\", () => {",
+                  "  pm.expect(body.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
+                  "  pm.expect(body.isVerified).to.eql(false);",
+                  "});",
+                  "pm.test(\"devOtp mila (backend mein EXPOSE_DEV_OTP=true)\", () => {",
+                  "  pm.expect(body.devOtp).to.match(/^\\d{6}$/);",
+                  "});",
+                  "pm.collectionVariables.set(\"verifyOtpA\", body.devOtp);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Verify Email User A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"User ab verified hai\", () => {",
+                  "  pm.expect(pm.response.json().user.isVerified).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"otp\": \"{{verifyOtpA}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/verify-email"
+          }
+        },
+        {
+          "name": "Register User B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// User B sirf is liye — Files mein \"doosre user ki file\" wala failure test",
+                  "pm.test(\"Status 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Email User B ka hai\", () => {",
+                  "  pm.expect(body.email).to.eql(pm.collectionVariables.get(\"userBEmail\"));",
+                  "});",
+                  "pm.collectionVariables.set(\"verifyOtpB\", body.devOtp);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Verify Email User B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Token mila\", () => {",
+                  "  pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "// B ka token collection variable mein — accessToken (User A) ko nahi chhedte",
+                  "pm.collectionVariables.set(\"userBToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"otp\": \"{{verifyOtpB}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/verify-email"
+          }
+        },
+        {
+          "name": "Request Login OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 2FA ka pehla qadam — abhi token nahi, sirf loginToken + code",
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"loginToken aur devOtp mile\", () => {",
+                  "  pm.expect(body.loginToken).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(body.devOtp).to.match(/^\\d{6}$/);",
+                  "});",
+                  "pm.collectionVariables.set(\"loginToken\", body.loginToken);",
+                  "pm.collectionVariables.set(\"loginOtp\", body.devOtp);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/login/request-otp"
+          }
+        },
+        {
+          "name": "Verify OTP / Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Token aur sahi user mila\", () => {",
+                  "  pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(body.user.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
+                  "});",
+                  "// yahi asal kaam — token environment mein, baqi saari protected requests {{accessToken}} use karti hain",
+                  "pm.environment.set(\"accessToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loginToken\": \"{{loginToken}}\",\n  \"otp\": \"{{loginOtp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/login/verify-otp"
+          }
+        },
+        {
+          "name": "Wrong Password (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// login ke BAAD — ek ghalat koshish, lockout (5) se bohat door; token pehle hi mil chuka",
+                  "pm.test(\"Status 401\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Generic message, loginToken nahi\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.message).to.eql(\"Invalid email or password\");",
+                  "  pm.expect(body).to.not.have.property(\"loginToken\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"Ghalat1234!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/login/request-otp"
+          }
+        }
+      ]
     },
     {
       "name": "Tickets",
@@ -62,8 +427,18 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
-            "url": "{{baseUrl}}/tickets"
+            "url": "{{baseUrl}}/tickets",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ]
           }
         },
         {
@@ -74,7 +449,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// auth 'noauth' — collection ki x-api-key yahan inherit nahi hoti, to apiKey middleware pehle hi rok deta hai",
+                  "// is request mein x-api-key header hai hi nahi — apiKey middleware token se bhi pehle rok deta hai",
                   "pm.test(\"Status 401\", () => {",
                   "  pm.response.to.have.status(401);",
                   "});",
@@ -86,9 +461,9 @@
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
             "method": "GET",
-            "url": "{{baseUrl}}/tickets"
+            "url": "{{baseUrl}}/tickets",
+            "header": []
           }
         }
       ]
