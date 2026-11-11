@@ -408,6 +408,212 @@
       "name": "Tickets",
       "item": [
         {
+          "name": "Create Ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const ticket = pm.response.json().ticket;",
+                  "pm.test(\"Ticket bana, ek PNG attachment ke saath\", () => {",
+                  "  pm.expect(ticket.title).to.eql(\"Postman test ticket\");",
+                  "  pm.expect(ticket.attachments).to.have.lengthOf(1);",
+                  "  pm.expect(ticket.attachments[0].mimetype).to.eql(\"image/png\");",
+                  "});",
+                  "// agli requests ke liye — ticket ki id, aur attachment ki id (Files folder mein yahi fileId hai)",
+                  "pm.collectionVariables.set(\"ticketId\", ticket._id);",
+                  "pm.collectionVariables.set(\"fileId\", ticket.attachments[0]._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Postman test ticket",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Collection Runner se bana",
+                  "type": "text"
+                },
+                {
+                  "key": "attachments",
+                  "type": "file",
+                  "src": "fixtures/sample.png"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/tickets"
+          }
+        },
+        {
+          "name": "Get All Tickets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"List mein naya ticket hai\", () => {",
+                  "  const ids = pm.response.json().tickets.map((t) => t._id);",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get(\"ticketId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets"
+          }
+        },
+        {
+          "name": "Get Ticket by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Wohi ticket mila\", () => {",
+                  "  pm.expect(pm.response.json().ticket._id).to.eql(pm.collectionVariables.get(\"ticketId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}"
+          }
+        },
+        {
+          "name": "Short Title (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// title 5–100 characters — \"abc\" par validation 400 { message, errors }",
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error title field par\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.errors[0].field).to.eql(\"title\");",
+                  "  pm.expect(body.message).to.include(\"Title must be between\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "abc",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Chhota title",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/tickets"
+          }
+        },
+        {
+          "name": "Another User's Ticket (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// User B ke token se User A ka ticket — 404 (403 nahi), taake pata na chale ke id maujood hai",
+                  "pm.test(\"Status 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message: Ticket not found\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Ticket not found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userBToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}"
+          }
+        },
+        {
           "name": "No Token (Failure Test)",
           "event": [
             {
