@@ -59,4 +59,43 @@ async function acceptInvitation(req, res, next) {
   }
 }
 
-module.exports = { sendInvitation, listInvitations, cancelInvitation, getInvitation, acceptInvitation };
+// GET /invitations — mujhe aaye pending invites
+async function listReceived(req, res, next) {
+  try {
+    const invitations = await invitationService.listReceived(req.user.id);
+    res.status(200).json({ invitations });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /invitations/received/:inviteId/accept
+async function acceptReceived(req, res, next) {
+  try {
+    const { org, role } = await invitationService.acceptReceived(req.params.inviteId, req.user.id);
+    res.status(200).json({ message: "Invitation accepted", org, role });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /invitations/received/:inviteId/decline
+async function declineReceived(req, res, next) {
+  try {
+    const invitation = await invitationService.declineReceived(req.params.inviteId, req.user.id);
+    res.status(200).json({ message: "Invitation declined", invitation });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  sendInvitation,
+  listInvitations,
+  cancelInvitation,
+  getInvitation,
+  acceptInvitation,
+  listReceived,
+  acceptReceived,
+  declineReceived
+};

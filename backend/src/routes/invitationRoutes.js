@@ -8,6 +8,111 @@ const router = express.Router();
 
 /**
  * @openapi
+ * /invitations:
+ *   get:
+ *     tags: [Invitations]
+ *     summary: Mujhe aaye invites (received)
+ *     description: Logged-in user ke email par aaye pending invites — har org ke, expire hue nahi. tokenHash nahi.
+ *     security:
+ *       - ApiKeyAuth: []
+ *         BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Received invites (naye pehle); org aur invitedBy ke naam ke saath
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 invitations:
+ *                   type: array
+ *                   items:
+ *                     $ref: "#/components/schemas/Invitation"
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
+ *       500:
+ *         $ref: "#/components/responses/ServerError"
+ */
+router.get("/", authMiddleware, invitationController.listReceived);
+
+/**
+ * @openapi
+ * /invitations/received/{inviteId}/accept:
+ *   post:
+ *     tags: [Invitations]
+ *     summary: Received invite accept (link ke bina)
+ *     description: |
+ *       Sirf MERE email ka invite — token nahi chahiye (logged-in verified email hi saboot). Kisi aur ka invite id → 404.
+ *       Baaki qaide link wale accept jaise: ek transaction, ek dafa, expired/replaced 410, pehle se member 409.
+ *     security:
+ *       - ApiKeyAuth: []
+ *         BearerAuth: []
+ *     parameters:
+ *       - $ref: "#/components/parameters/InviteId"
+ *     responses:
+ *       200:
+ *         description: Ab aap org ke member hain
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Invitation accepted
+ *                 org:
+ *                   $ref: "#/components/schemas/Organization"
+ *                 role:
+ *                   $ref: "#/components/schemas/Role"
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
+ *       404:
+ *         $ref: "#/components/responses/InvitationNotFound"
+ *       409:
+ *         $ref: "#/components/responses/InvitationAccepted"
+ *       410:
+ *         $ref: "#/components/responses/InvitationGone"
+ *       500:
+ *         $ref: "#/components/responses/ServerError"
+ */
+router.post("/received/:inviteId/accept", authMiddleware, invitationController.acceptReceived);
+
+/**
+ * @openapi
+ * /invitations/received/{inviteId}/decline:
+ *   post:
+ *     tags: [Invitations]
+ *     summary: Received invite decline
+ *     description: Sirf mera pending invite — mit jaata hai (link bhi band). Kisi aur ka ya pehle se accept → 404.
+ *     security:
+ *       - ApiKeyAuth: []
+ *         BearerAuth: []
+ *     parameters:
+ *       - $ref: "#/components/parameters/InviteId"
+ *     responses:
+ *       200:
+ *         description: Invite decline
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Invitation declined
+ *                 invitation:
+ *                   $ref: "#/components/schemas/Invitation"
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
+ *       404:
+ *         $ref: "#/components/responses/InvitationNotFound"
+ *       500:
+ *         $ref: "#/components/responses/ServerError"
+ */
+router.post("/received/:inviteId/decline", authMiddleware, invitationController.declineReceived);
+
+/**
+ * @openapi
  * /invitations/{token}:
  *   get:
  *     tags: [Invitations]

@@ -242,6 +242,9 @@ Every request needs the `x-api-key` header. 🔒 means it also needs `Authorizat
 | DELETE | `/orgs/:orgId/invitations/:inviteId` | 🔒 admin | Cancel a pending invitation |
 | GET | `/invitations/:token` | API key only | Check a link and show the org name, role and expiry (for the invite page, before login) |
 | POST | `/invitations/:token/accept` | 🔒 | Accept as the invited email |
+| GET | `/invitations` | 🔒 | Invitations **received** by the logged-in user's email, from any org (pending and not expired) |
+| POST | `/invitations/received/:inviteId/accept` | 🔒 | Accept a received invitation without the link (the verified email is the proof; someone else's invite id returns `404`) |
+| POST | `/invitations/received/:inviteId/decline` | 🔒 | Decline a received invitation (it's deleted and its link stops working) |
 
 **Tasks, tickets, profile and files** 🔒 (each user sees only their own)
 
@@ -267,7 +270,7 @@ Every request needs the `x-api-key` header. 🔒 means it also needs `Authorizat
 3. After the database write is committed, the invitation email is sent with a link to `<FRONTEND_URL>/invitations/<token>`. With SMTP configured the link is never logged; without SMTP it's printed to the console for development.
 4. Re-inviting an email that has a pending invitation marks the old one `replaced`, so its link stops working, and creates a new token.
 5. The invite page calls `GET /invitations/:token` (no login) to show the org name, role and expiry.
-6. The person logs in **with the invited email** and calls `POST /invitations/:token/accept`. **One transaction** checks the link, checks that the logged-in email matches, creates the membership with the invited role and marks the invitation `accepted`.
+6. The person logs in **with the invited email** and calls `POST /invitations/:token/accept`, or accepts it from their received list (`GET /invitations`, then `POST /invitations/received/:inviteId/accept`). **One transaction** checks the link, checks that the logged-in email matches, creates the membership with the invited role and marks the invitation `accepted`.
 
 | Situation | Response |
 |---|---|

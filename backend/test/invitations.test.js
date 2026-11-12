@@ -434,3 +434,88 @@ test("devToken sirf development — NODE_ENV=production mein EXPOSE_DEV_OTP=true
   assert.equal(read({ NODE_ENV: "production", EXPOSE_DEV_OTP: "true" }), "false");
   assert.equal(read({ EXPOSE_DEV_OTP: "true" }), "true");
 });
+
+// ---------- received (mujhe aaye invites) ----------
+
+const received = (who) => as(who).get("/invitations");
+const acceptReceived = (who, id) => as(who).post(`/invitations/received/${id}/accept`);
+const declineReceived = (who, id) => as(who).post(`/invitations/received/${id}/decline`);
+
+test("received — sirf mere email ke pending invites (har org ke); expired/replaced/accepted/doosre ke nahi; tokenHash nahi", async () => {
+  const email = freshEmail();
+  const guest = await account(email);
+  const orgA = await orgWithRoles("Recv A");
+  const orgB = (await as(bob).post("/orgs", { name: "Recv B" })).json.org._id;
+
+  await invite(alice, orgA, email, "viewer");
+  await invite(bob, orgB, email, "admin");
+  // doosre ka invite — list mein nahi aana chahiye
+  await invite(alice, orgA, freshEmail());
+  // expired
+  const orgC = (await as(bob).post("/orgs", { name: "Recv C" })).json.org._id;
+  const old = await invite(bob, orgC, email);
+  await Invitation().updateOne({ _id: old.json.invitation._id }, { expiresAt: new Date(Date.now() - 1000) });
+
+  const res = await received(guest);
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.json.invitations.map((i) => i.org.name).sort(), ["Recv A", "Recv B"]);
+  assert.ok(res.json.invitations.every((i) => i.email === email && i.status === "pending"));
+  assert.equal(res.json.invitations.find((i) => i.org.name === "Recv B").invitedBy.email, bob.email);
+  assert.ok(!res.text.includes("tokenHash"));
+  assert.equal((await ctx.request("GET", "/invitations")).status, 401);
+});
+
+test("received accept — token ke bina id se → member; dobara 409; kisi aur ka invite id → 404", async () => {
+  const email = freshEmail();
+  const guest = await account(email);
+  const orgId = await orgWithRoles("Recv Accept");
+  const { json } = await invite(alice, orgId, email, "member");
+  const id = json.invitation._id;
+
+  // bob ka email alag — us ke liye yeh invite "hai hi nahi"
+  const other = await acceptReceived(bob, id);
+  assert.equal(other.status, 404);
+  assert.deepEqual(other.json, { message: "Invitation not found" });
+
+  const ok = await acceptReceived(guest, id);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.role, "member");
+  assert.equal(ok.json.org.name, "Recv Accept");
+  assert.equal(await Member().countDocuments({ org: orgId, user: guest.id }), 1);
+  assert.equal((await acceptReceived(guest, id)).status, 409);
+  assert.equal((await received(guest)).json.invitations.length, 0, "accept ke baad list khaali");
+  assert.equal((await acceptReceived(guest, "abc")).status, 404);
+});
+
+test("received accept — expire hua → 410; replaced → 410", async () => {
+  const email = freshEmail();
+  const guest = await account(email);
+  const orgId = await orgWithRoles();
+  const first = await invite(alice, orgId, email);
+  await invite(alice, orgId, email);
+  assert.equal((await acceptReceived(guest, first.json.invitation._id)).status, 410, "replaced");
+
+  const current = await Invitation().findOne({ org: orgId, email, status: "pending" });
+  await Invitation().updateOne({ _id: current._id }, { expiresAt: new Date(Date.now() - 1000) });
+  assert.equal((await acceptReceived(guest, String(current._id))).status, 410, "expired");
+  assert.equal(await Member().countDocuments({ org: orgId, user: guest.id }), 0);
+});
+
+test("received decline — mera invite mit jaata hai aur link band; kisi aur ka → 404", async () => {
+  const email = freshEmail();
+  const guest = await account(email);
+  const orgId = await orgWithRoles();
+  const { json } = await invite(alice, orgId, email);
+  const id = json.invitation._id;
+  const token = ctx.inviteTokenFor(email);
+
+  assert.equal((await declineReceived(bob, id)).status, 404);
+  assert.ok(await Invitation().findById(id));
+
+  const res = await declineReceived(guest, id);
+  assert.equal(res.status, 200);
+  assert.equal(res.json.message, "Invitation declined");
+  assert.equal(await Invitation().findById(id), null);
+  assert.equal((await preview(token)).status, 404, "link bhi band");
+  assert.equal((await declineReceived(guest, id)).status, 404);
+});

@@ -131,16 +131,16 @@ async function getInvitation(token) {
   };
 }
 
-// POST /invitations/:token/accept — logged-in user ka email invite wala hi ho (warna 403)
+// accept ka asal kaam — link (token) se ho ya "received" list (id) se; find(session, user) invite dhoondta hai
 // ek transaction: jaanch + membership + invite "accepted" — do parallel accept mein sirf ek kamyab
-async function acceptInvitation(token, userId) {
+async function acceptWith(userId, find) {
   let accepted;
   try {
     await mongoose.connection.transaction(async (session) => {
-      const invitation = await findByToken(token, session);
+      const user = await User.findById(userId).select("email").session(session);
+      const invitation = await find(session, user);
       assertUsable(invitation);
 
-      const user = await User.findById(userId).select("email").session(session);
       if (!user || user.email !== invitation.email) {
         throw new ForbiddenError("This invitation was sent to a different email address. Log in with that email to accept it.");
       }
@@ -178,6 +178,54 @@ async function acceptInvitation(token, userId) {
   return { org, role: accepted.role };
 }
 
+// POST /invitations/:token/accept — email ka link; logged-in user ka email invite wala hi ho (warna 403)
+function acceptInvitation(token, userId) {
+  return acceptWith(userId, (session) => findByToken(token, session));
+}
+
+// "received" — sirf MERE email ke invites; id se dhoondte waqt email bhi shart mein, is liye kisi aur ka invite id → 404
+// (token yahan nahi chahiye: logged-in user ka verified email hi saboot hai ke invite usi ka hai)
+function findMine(inviteId, user, session = null) {
+  if (!user || typeof inviteId !== "string" || !OBJECT_ID.test(inviteId)) {
+    return null;
+  }
+  return Invitation.findOne({ _id: inviteId, email: user.email }).session(session);
+}
+
+// GET /invitations — mujhe aaye pending invites (har org ke), expire hue nahi; tokenHash nahi
+async function listReceived(userId) {
+  const user = await User.findById(userId).select("email").lean();
+  if (!user) {
+    return [];
+  }
+  const invitations = await Invitation.find({ email: user.email, status: "pending", expiresAt: { $gt: new Date() } })
+    .select("-tokenHash")
+    .sort({ createdAt: -1 })
+    .populate("org", "name")
+    .populate("invitedBy", "name email")
+    .lean();
+  // org beech mein delete ho gayi ho to (transaction us ke invites bhi mitata hai) — phir bhi bacha ho to chhod do
+  return invitations.filter((inv) => inv.org);
+}
+
+// POST /invitations/received/:inviteId/accept
+function acceptReceived(inviteId, userId) {
+  return acceptWith(userId, (session, user) => findMine(inviteId, user, session));
+}
+
+// POST /invitations/received/:inviteId/decline — sirf mera pending invite; document mit jaata hai (cancel jaisa)
+async function declineReceived(inviteId, userId) {
+  const user = await User.findById(userId).select("email").lean();
+  if (!user || typeof inviteId !== "string" || !OBJECT_ID.test(inviteId)) {
+    throw new NotFoundError(INVITATION_NOT_FOUND);
+  }
+  const invitation = await Invitation.findOneAndDelete({ _id: inviteId, email: user.email, status: "pending" }).select("-tokenHash").lean();
+  if (!invitation) {
+    throw new NotFoundError(INVITATION_NOT_FOUND);
+  }
+  return invitation;
+}
+
 // GET /orgs/:orgId/invitations — sirf pending (expire hue bhi, "expired: true" ke saath, taake admin dobara bheje)
 async function listInvitations(orgId) {
   // lean() toJSON nahi chalata — tokenHash yahin select se bahar
@@ -202,4 +250,15 @@ async function cancelInvitation(orgId, inviteId) {
   return invitation;
 }
 
-module.exports = { INVITATION_NOT_FOUND, hashToken, sendInvitation, getInvitation, acceptInvitation, listInvitations, cancelInvitation };
+module.exports = {
+  INVITATION_NOT_FOUND,
+  hashToken,
+  sendInvitation,
+  getInvitation,
+  acceptInvitation,
+  listInvitations,
+  cancelInvitation,
+  listReceived,
+  acceptReceived,
+  declineReceived
+};

@@ -52,7 +52,8 @@ test("spec mein har endpoint hai, aur har response ka koi example/schema", async
     "DELETE /orgs/{orgId}/members/{userId}", "PATCH /orgs/{orgId}/members/{userId}/role",
     "POST /orgs/{orgId}/leave", "POST /orgs/{orgId}/transfer-ownership",
     "GET /orgs/{orgId}/invitations", "POST /orgs/{orgId}/invitations", "DELETE /orgs/{orgId}/invitations/{inviteId}",
-    "GET /invitations/{token}", "POST /invitations/{token}/accept"
+    "GET /invitations/{token}", "POST /invitations/{token}/accept",
+    "GET /invitations", "POST /invitations/received/{inviteId}/accept", "POST /invitations/received/{inviteId}/decline"
   ];
   assert.deepEqual(documented.sort(), expected.sort());
 

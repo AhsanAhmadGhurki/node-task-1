@@ -7,6 +7,7 @@ import Loader from '../components/Loader'
 import OrgInvitations from '../components/OrgInvitations'
 import OrgMembers from '../components/OrgMembers'
 import OrgSettings from '../components/OrgSettings'
+import ReceivedInvitations from '../components/ReceivedInvitations'
 import Toast from '../components/Toast'
 import WorkspaceSidebar from '../components/WorkspaceSidebar'
 import { WorkspaceProvider } from '../context/WorkspaceContext'
@@ -44,11 +45,18 @@ function WorkspaceContent({ orgId, section }) {
     content = <p className="text-sm text-error-text">{error.text}</p>
   } else if (!orgId) {
     // /workspace — pehli org par, warna khaali halat
+    // koi org nahi — aaye hue invites yahin, taake naya bulaya gaya user seedha join kar sake
     content = orgs.length ? (
       <Navigate to={`/workspace/${orgs[0]._id}/members`} replace />
     ) : (
-      <div className={panel}>
-        <EmptyState icon={BuildingIcon} title="Aap kisi org mein nahi" text="Sidebar se nayi org banayein (aap owner honge), ya kisi invite link se join karein." />
+      <div className="flex flex-col gap-6">
+        <div className={panel}>
+          <EmptyState icon={BuildingIcon} title="Aap kisi org mein nahi" text="Sidebar se nayi org banayein (aap owner honge), ya neeche aaye invite accept karein." />
+        </div>
+        <section>
+          <h2 className="mb-3 text-base font-semibold">Aap ko aaye invites</h2>
+          <ReceivedInvitations onResult={showResult} />
+        </section>
       </div>
     )
   } else if (!org) {

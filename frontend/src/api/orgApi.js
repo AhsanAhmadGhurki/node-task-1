@@ -72,3 +72,19 @@ export async function acceptInvitation(token) {
   const { data } = await api.post(`/invitations/${encodeURIComponent(token)}/accept`)
   return data
 }
+
+// mujhe aaye invites (har org ke) — link ke bina, id se accept/decline (logged-in email hi saboot)
+export async function listReceivedInvitations() {
+  const { data } = await api.get('/invitations')
+  return data
+}
+
+export async function acceptReceivedInvitation(inviteId) {
+  const { data } = await api.post(`/invitations/received/${inviteId}/accept`)
+  return data
+}
+
+export async function declineReceivedInvitation(inviteId) {
+  const { data } = await api.post(`/invitations/received/${inviteId}/decline`)
+  return data
+}

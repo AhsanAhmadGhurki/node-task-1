@@ -5,17 +5,53 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { cancelInvitation, listInvitations, sendInvitation } from '../api/orgApi'
 import { useAction } from '../hooks/useAction'
 import { ClockIcon, MailIcon } from '../ui/icons'
-import { badge, button, cn, hint, input, label, link, panel } from '../ui/styles'
+import { badge, button, cn, focusRing, hint, input, label, link, panel } from '../ui/styles'
 import { toAlert } from '../utils/helpers'
 import { can, deniedReason, invitableRoles } from '../workspace/permissions'
 import Loader from './Loader'
+import ReceivedInvitations from './ReceivedInvitations'
 
 function timeLeft(expiresAt) {
   const hours = Math.round((new Date(expiresAt).getTime() - Date.now()) / (60 * 60 * 1000))
   return hours > 0 ? `${hours} ghante baqi` : 'expire ho gaya'
 }
 
+// do tab — Sent (is org se bheje) aur Received (mujhe aaye, har org ke); Dashboard ke filter jaisa segmented control
+const TABS = [
+  ['sent', 'Sent'],
+  ['received', 'Received'],
+]
+
 export default function OrgInvitations({ org, onResult }) {
+  const [tab, setTab] = useState('sent')
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="inline-flex w-fit rounded-md bg-subtle p-0.5" role="group" aria-label="Invites">
+        {TABS.map(([key, text]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={tab === key}
+            onClick={() => setTab(key)}
+            className={cn(
+              'inline-flex h-7 cursor-pointer items-center rounded px-2.5 text-sm font-medium transition-colors',
+              focusRing,
+              // Dashboard ke filter jaisa — chuna hua safed satah aur patli line (saaya nahi)
+              tab === key ? 'bg-card text-text ring-1 ring-border' : 'text-muted hover:text-text',
+            )}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+      {tab === 'sent' ? <SentInvitations org={org} onResult={onResult} /> : <ReceivedInvitations onResult={onResult} />}
+    </div>
+  )
+}
+
+// is org se bheje gaye pending invites — bhejna (owner/admin), list, cancel
+function SentInvitations({ org, onResult }) {
   const { busy, run } = useAction(onResult)
   const [invitations, setInvitations] = useState(null)
   const [email, setEmail] = useState('')
@@ -113,7 +149,7 @@ export default function OrgInvitations({ org, onResult }) {
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-semibold">Pending invites {invitations && `(${invitations.length})`}</h2>
+        <h2 className="mb-3 text-base font-semibold">Sent — pending {invitations && `(${invitations.length})`}</h2>
         {!invitations ? (
           <Loader text="Invites load ho rahe hain…" rows={2} />
         ) : invitations.length === 0 ? (
