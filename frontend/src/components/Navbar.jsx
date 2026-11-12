@@ -3,12 +3,14 @@
 import { Link, NavLink } from 'react-router'
 import { useAuth } from '../hooks/useAuth'
 import Avatar from './Avatar'
-import { LifeBuoyIcon, ListChecksIcon, LogOutIcon, LogoMark } from '../ui/icons'
+import { BuildingIcon, LifeBuoyIcon, ListChecksIcon, LogOutIcon, LogoMark } from '../ui/icons'
 import { button, cn, focusRing } from '../ui/styles'
 
 const LINKS = [
   ['/dashboard', 'Tasks', ListChecksIcon],
   ['/tickets', 'Tickets', LifeBuoyIcon],
+  // orgs + roles (abhi mock) — /workspace/tasks, /tickets, /members sab is link ke neeche active
+  ['/workspace', 'Workspaces', BuildingIcon],
 ]
 
 export default function Navbar() {

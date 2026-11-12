@@ -53,3 +53,38 @@ All requests need an `x-api-key` header, except `GET /verify/:token`, which is o
 | GET / PUT / DELETE | `/tasks/:id` | API key + JWT |
 
 **Rate limits:** each IP gets 5 resend requests per 15 minutes (shared by both resend routes) and 10 registrations per hour. Each email also gets at most one verification email per 60 seconds. Over the limit, the response is `429` with a `Retry-After` header.
+
+## Workspaces and roles
+
+Every user can belong to several organizations (workspaces). A role belongs to a **membership** (user + org), not to the user, so the same person can be an owner in one org and a viewer in another. Any verified user can create an org and becomes its first owner.
+
+### Permission matrix
+
+| Action | owner | admin | member | viewer |
+|---|:-:|:-:|:-:|:-:|
+| View the org, its members and pending invites | ✅ | ✅ | ✅ | ✅ |
+| View the org's tasks and tickets | ✅ | ✅ | ✅ | ✅ |
+| Create tasks and tickets | ✅ | ✅ | ✅ | ❌ |
+| Edit or delete **own** tasks and tickets | ✅ | ✅ | ✅ | ❌ |
+| Edit or delete **anyone's** tasks and tickets | ✅ | ✅ | ❌ | ❌ |
+| Invite as `member` or `viewer` | ✅ | ✅ | ❌ | ❌ |
+| Invite as `admin` | ✅ | ❌ | ❌ | ❌ |
+| Cancel a pending invite | ✅ | ✅ | ❌ | ❌ |
+| Remove a `member` or `viewer` | ✅ | ✅ | ❌ | ❌ |
+| Remove an `admin` or `owner` | ✅ | ❌ | ❌ | ❌ |
+| Change a role between `member` and `viewer` | ✅ | ✅ | ❌ | ❌ |
+| Make someone `admin` or `owner`, or demote an `admin`/`owner` | ✅ | ❌ | ❌ | ❌ |
+| Transfer ownership (needs the owner's password) | ✅ | ❌ | ❌ | ❌ |
+| Delete the org | ✅ | ❌ | ❌ | ❌ |
+| Leave the org | ✅* | ✅ | ✅ | ✅ |
+
+\* Except the last owner.
+
+### Rules
+
+- **At least one owner.** An org can have several owners, but the last owner can't leave, be demoted or be removed: `400` with a clear message. The check and the change happen atomically, so two owners demoting each other at the same time can't leave the org with none.
+- **Ownership transfer:** only an owner can transfer, and must re-enter their password (`401` if it's wrong). The chosen member becomes `owner` and the previous owner becomes `admin`.
+- **Invites:** nobody can be invited as `owner`. The invite email contains a link with a random token that expires after **48 hours**; only its hash is stored. Inviting an email that is already a member returns `409`. Re-inviting a pending email replaces the old token, so the old link stops working.
+- **Accepting an invite** requires being logged in with the same email the invite was sent to, otherwise `403`.
+- **Isolation:** a user who isn't a member of an org gets `404` for that org and everything inside it (members, invites, tasks, tickets), even with a valid ID, so the response never reveals that it exists. A member whose role is too low gets `403`.
+- **One place for checks:** every org route uses one reusable middleware, `requireRole(...)`. Controllers don't check roles themselves.

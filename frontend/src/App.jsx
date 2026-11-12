@@ -8,6 +8,7 @@ import NotFound from './pages/NotFound'
 import Profile from './pages/Profile'
 import Register from './pages/Register'
 import Tickets from './pages/Tickets'
+import Workspace from './pages/Workspace'
 
 export default function App() {
   return (
@@ -33,6 +34,16 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Tickets />
+              </ProtectedRoute>
+            }
+          />
+          {/* orgs + roles (abhi mock data) — section: tasks / tickets / members; ghalat section par Workspace khud /tasks bhejta hai */}
+          <Route path="/workspace" element={<Navigate to="/workspace/tasks" replace />} />
+          <Route
+            path="/workspace/:section"
+            element={
+              <ProtectedRoute>
+                <Workspace />
               </ProtectedRoute>
             }
           />
