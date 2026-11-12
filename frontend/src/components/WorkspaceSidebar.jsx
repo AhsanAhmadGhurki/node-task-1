@@ -1,32 +1,35 @@
-// workspace page ki baayen patti — orgs ki list (har ek par aap ka role), nayi org, sections, aur role preview
-// org badalte hi role badal jaata hai — dobara login ki zaroorat nahi
-import { useId, useState } from 'react'
+// workspace page ki baayen patti — meri orgs (har ek par mera asli role), nayi org, aur chuni hui org ke sections
+// org badalte hi URL (/workspace/:orgId/...) aur role badal jaate hain
+import { useState } from 'react'
 import { NavLink } from 'react-router'
+import { useAction } from '../hooks/useAction'
 import { useWorkspace } from '../hooks/useWorkspace'
-import { LifeBuoyIcon, ListChecksIcon, PlusIcon, UsersIcon } from '../ui/icons'
-import { badge, button, cn, focusRing, hint, input, panel } from '../ui/styles'
-import { ME_ID } from '../workspace/mockData'
-import { ROLES } from '../workspace/permissions'
+import { MailIcon, PlusIcon, SettingsIcon, UsersIcon } from '../ui/icons'
+import { badge, button, cn, focusRing, input, panel } from '../ui/styles'
 
 const SECTIONS = [
-  ['tasks', 'Tasks', ListChecksIcon],
-  ['tickets', 'Tickets', LifeBuoyIcon],
   ['members', 'Members', UsersIcon],
+  ['invitations', 'Invitations', MailIcon],
+  ['settings', 'Settings', SettingsIcon],
 ]
 
 const heading = 'px-2 pb-1.5 text-xs font-medium text-muted'
 const row = cn('flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm no-underline transition-colors', focusRing)
+const rowState = ({ isActive }) => cn(row, isActive ? 'bg-subtle font-medium text-text' : 'text-muted hover:bg-subtle hover:text-text')
 
-export default function WorkspaceSidebar({ onResult }) {
-  const { orgs, activeOrg, myRole, previewRole, selectOrg, setPreviewRole, createOrg } = useWorkspace()
+export default function WorkspaceSidebar({ orgId, section, onResult, onCreated }) {
+  const { orgs, createOrg } = useWorkspace()
+  const { busy, run } = useAction(onResult)
   const [newName, setNewName] = useState(null)
-  const previewId = useId()
+  const activeOrg = orgs?.find((org) => org._id === orgId)
 
-  function handleCreate(e) {
+  async function handleCreate(e) {
     e.preventDefault()
-    const result = createOrg(newName)
-    onResult(result)
-    if (result.ok) setNewName(null)
+    const data = await run(() => createOrg(newName), (d) => `"${d.org.name}" ban gayi — aap owner hain`)
+    if (data) {
+      setNewName(null)
+      onCreated(data.org._id)
+    }
   }
 
   return (
@@ -34,23 +37,15 @@ export default function WorkspaceSidebar({ onResult }) {
       <div>
         <p className={heading}>Workspaces</p>
         <ul className="flex flex-col gap-0.5">
-          {orgs.map((org) => {
-            const orgRole = org.members.find((m) => m.userId === ME_ID)?.role
-            const active = org.id === activeOrg?.id
-            return (
-              <li key={org.id}>
-                <button
-                  type="button"
-                  onClick={() => selectOrg(org.id)}
-                  aria-current={active ? 'true' : undefined}
-                  className={cn(row, active ? 'bg-subtle font-medium text-text' : 'text-muted hover:bg-subtle hover:text-text')}
-                >
-                  <span className="min-w-0 flex-1 truncate">{org.name}</span>
-                  <span className={badge}>{orgRole}</span>
-                </button>
-              </li>
-            )
-          })}
+          {(orgs || []).map((org) => (
+            <li key={org._id}>
+              {/* org badlo to wahi section khula rahe */}
+              <NavLink to={`/workspace/${org._id}/${section || 'members'}`} className={() => rowState({ isActive: org._id === orgId })}>
+                <span className="min-w-0 flex-1 truncate">{org.name}</span>
+                <span className={badge}>{org.role}</span>
+              </NavLink>
+            </li>
+          ))}
         </ul>
 
         {newName === null ? (
@@ -67,10 +62,11 @@ export default function WorkspaceSidebar({ onResult }) {
               onKeyDown={(e) => e.key === 'Escape' && setNewName(null)}
               placeholder="Org ka naam"
               aria-label="Nayi org ka naam"
+              maxLength={100}
               autoFocus
             />
             <div className="flex gap-1.5">
-              <button type="submit" className={button({ size: 'sm' })}>
+              <button type="submit" className={button({ size: 'sm' })} disabled={busy || newName.trim().length < 2}>
                 Banao
               </button>
               <button type="button" className={button({ variant: 'ghost', size: 'sm' })} onClick={() => setNewName(null)}>
@@ -86,41 +82,13 @@ export default function WorkspaceSidebar({ onResult }) {
           <p className={heading}>{activeOrg.name}</p>
           <div className="flex flex-col gap-0.5">
             {SECTIONS.map(([to, text, Icon]) => (
-              <NavLink
-                key={to}
-                to={`/workspace/${to}`}
-                className={({ isActive }) =>
-                  cn(row, 'font-medium', isActive ? 'bg-subtle text-text' : 'text-muted hover:bg-subtle hover:text-text')
-                }
-              >
+              <NavLink key={to} to={`/workspace/${activeOrg._id}/${to}`} className={rowState}>
                 <Icon />
                 {text}
               </NavLink>
             ))}
           </div>
         </nav>
-      )}
-
-      {activeOrg && (
-        <div className="flex flex-col gap-1.5 border-t border-border px-2 pt-3 pb-1">
-          <label htmlFor={previewId} className="text-xs font-medium text-muted">
-            Role preview
-          </label>
-          <select
-            id={previewId}
-            className={input}
-            value={previewRole || ''}
-            onChange={(e) => setPreviewRole(e.target.value || null)}
-          >
-            <option value="">Asli role ({myRole})</option>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <p className={hint}>Sirf frontend par — dekhne ke liye ke har role ko kya milta hai.</p>
-        </div>
       )}
     </aside>
   )

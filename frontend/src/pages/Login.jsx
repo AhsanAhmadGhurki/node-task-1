@@ -1,7 +1,7 @@
 // /login — do qadam (2FA): email + password → email par login code → code se dashboard
 // unverified (403) ho to wahin email verify ka code (code sahi hote hi backend login bhi kar deta hai)
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { requestLoginOtp } from '../api/authApi'
 import Alert from '../components/Alert'
 import AuthLayout from '../components/AuthLayout'
@@ -11,11 +11,14 @@ import VerifyEmail from '../components/VerifyEmail'
 import { useAuth } from '../hooks/useAuth'
 import { ArrowLeftIcon } from '../ui/icons'
 import { button, cn, field, form, input, label, link } from '../ui/styles'
-import { toAlert } from '../utils/helpers'
+import { safeNext, toAlert } from '../utils/helpers'
 
 export default function Login() {
   const { token, login, notice, setNotice } = useAuth()
   const navigate = useNavigate()
+  // invite link se aaye (?next=/invitations/...) to login ke baad wahin wapas — warna dashboard
+  const [searchParams] = useSearchParams()
+  const next = safeNext(searchParams.get('next'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [alert, setAlert] = useState(null)
@@ -28,13 +31,13 @@ export default function Login() {
 
   // pehle se login hai to seedha dashboard
   if (token) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={next} replace />
   }
 
   // verify-email ya login code — dono { token, user } dete hain (refresh cookie backend lagata hai)
   function startSession(data) {
     login(data)
-    navigate('/dashboard', { replace: true })
+    navigate(next, { replace: true })
   }
 
   async function doLogin(creds) {
@@ -96,7 +99,7 @@ export default function Login() {
       footer={
         <>
           Account nahi hai?{' '}
-          <Link to="/register" className={link}>
+          <Link to={`/register${searchParams.size ? `?${searchParams}` : ""}`} className={link}>
             Register karein
           </Link>
         </>

@@ -9,7 +9,7 @@ import { button, cn, focusRing } from '../ui/styles'
 const LINKS = [
   ['/dashboard', 'Tasks', ListChecksIcon],
   ['/tickets', 'Tickets', LifeBuoyIcon],
-  // orgs + roles (abhi mock) — /workspace/tasks, /tickets, /members sab is link ke neeche active
+  // orgs + roles (asli API) — /workspace/<orgId>/members waghaira sab is link ke neeche active
   ['/workspace', 'Workspaces', BuildingIcon],
 ]
 

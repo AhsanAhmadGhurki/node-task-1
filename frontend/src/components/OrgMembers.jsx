@@ -1,170 +1,164 @@
-// org ke members — invite form, members ki list (role dropdown, nikalna), pending invites, aur khud org chhodna
-// har control role ke hisaab se; aakhri owner wala qaida context (mock "backend") 400 se rokta hai
-import { useId, useState } from 'react'
+// org ke asli members (GET /orgs/:orgId/members) — role badalna, nikalna, khud chhodna
+// button mera role dekh kar band/khula; aakhri owner jaise qaide backend lagata hai (400 Toast mein)
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { changeRole, leaveOrg, listMembers, removeMember } from '../api/orgApi'
+import { useAction } from '../hooks/useAction'
 import { useAuth } from '../hooks/useAuth'
 import { useWorkspace } from '../hooks/useWorkspace'
-import { ClockIcon, LogOutIcon, MailIcon, TrashIcon } from '../ui/icons'
-import { badge, button, cn, input, label, panel, titleText } from '../ui/styles'
-import { memberEmail, memberName } from '../workspace/members'
-import { ME_ID } from '../workspace/mockData'
-import { assignableRoles, can, canManageMember, deniedReason, invitableRoles } from '../workspace/permissions'
+import { LogOutIcon, TrashIcon, UsersIcon } from '../ui/icons'
+import { badge, button, cn, input, panel } from '../ui/styles'
+import { toAlert } from '../utils/helpers'
+import { ROLES, assignableRoles, canManageMember, deniedReason } from '../workspace/permissions'
+import EmptyState from './EmptyState'
+import Loader from './Loader'
 
-// invite kitni der aur chalega — "41 ghante baqi"
-function hoursLeft(expiresAt) {
-  const hours = Math.round((new Date(expiresAt).getTime() - Date.now()) / (60 * 60 * 1000))
-  return hours > 0 ? `${hours} ghante baqi` : 'expire ho gaya'
-}
+// "pakka?" ka button kitni der khula rahe (TaskItem jaisa)
+const CONFIRM_MS = 3000
 
-export default function OrgMembers({ onResult }) {
+export default function OrgMembers({ org, onResult }) {
   const { user } = useAuth()
-  const { activeOrg, role, invite, cancelInvite, changeRole, removeMember, leaveOrg } = useWorkspace()
-  const roleOptions = invitableRoles(role)
-  const [email, setEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('member')
-  const emailId = useId()
-  const roleId = useId()
-  const canInvite = can(role, 'member:invite')
-  // preview badalne par chuna hua role ijazat se bahar ho sakta hai — tab pehla jaiz role
-  const selectedInviteRole = roleOptions.includes(inviteRole) ? inviteRole : roleOptions[0]
+  const { reload: reloadOrgs } = useWorkspace()
+  const navigate = useNavigate()
+  const { busy, run } = useAction(onResult)
+  const [members, setMembers] = useState(null)
+  const [confirming, setConfirming] = useState(null)
+  const myRole = org.role
 
-  function handleInvite(e) {
-    e.preventDefault()
-    const result = invite(email, selectedInviteRole)
-    onResult(result)
-    if (result.ok) setEmail('')
+  // pehli load — sirf .then mein setState
+  useEffect(() => {
+    let cancelled = false
+    listMembers(org._id)
+      .then((data) => {
+        if (!cancelled) setMembers(data.members)
+      })
+      .catch((err) => {
+        if (!cancelled) onResult(toAlert(err))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [org._id, onResult])
+
+  useEffect(() => {
+    if (!confirming) return undefined
+    const timer = setTimeout(() => setConfirming(null), CONFIRM_MS)
+    return () => clearTimeout(timer)
+  }, [confirming])
+
+  const refresh = useCallback(async () => {
+    const data = await listMembers(org._id)
+    setMembers(data.members)
+  }, [org._id])
+
+  async function handleRole(member, role) {
+    const done = await run(() => changeRole(org._id, member.user._id, role), `${member.user.name || member.user.email} ab ${role} hai`)
+    if (!done) return
+    await refresh()
+    // apna role badla (owner ne khud ko demote kiya) — sidebar aur buttons naye role se
+    if (member.user._id === user._id) await reloadOrgs()
+  }
+
+  async function handleRemove(member) {
+    if (confirming !== member.user._id) {
+      setConfirming(member.user._id)
+      return
+    }
+    setConfirming(null)
+    const done = await run(() => removeMember(org._id, member.user._id), 'Member nikaal diya')
+    if (done) await refresh()
+  }
+
+  async function handleLeave() {
+    if (confirming !== 'leave') {
+      setConfirming('leave')
+      return
+    }
+    setConfirming(null)
+    const done = await run(() => leaveOrg(org._id), `"${org.name}" chhod di`)
+    if (!done) return
+    await reloadOrgs()
+    navigate('/workspace', { replace: true })
+  }
+
+  if (!members) return <Loader text="Members load ho rahe hain…" />
+  if (members.length === 0) {
+    return (
+      <div className={panel}>
+        <EmptyState icon={UsersIcon} title="Koi member nahi" />
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className={panel}>
-        <form onSubmit={handleInvite} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <label htmlFor={emailId} className={label}>
-              Email se invite
-            </label>
-            <input
-              id={emailId}
-              type="email"
-              className={input}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={canInvite ? 'naam@example.test' : `${role} invite nahi bhej sakta`}
-              disabled={!canInvite}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={roleId} className={label}>
-              Role
-            </label>
-            <select
-              id={roleId}
-              className={input}
-              value={selectedInviteRole || ''}
-              onChange={(e) => setInviteRole(e.target.value)}
-              disabled={!canInvite}
-            >
-              {roleOptions.length === 0 && <option value="">—</option>}
-              {roleOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="submit" className={button()} disabled={!canInvite || !email.trim()} title={canInvite ? undefined : deniedReason(role)}>
-            <MailIcon />
-            Invite
-          </button>
-        </form>
-      </section>
+    <section>
+      <ul className={cn(panel, 'divide-y divide-border')}>
+        {members.map((member) => {
+          const isMe = member.user._id === user._id
+          const manageable = canManageMember(myRole, member.role)
+          // ROLES ki tarteeb (owner → viewer) — maujooda role hamesha, baaki jo main de sakta hoon
+          const assignable = manageable ? assignableRoles(myRole) : []
+          const options = ROLES.filter((r) => r === member.role || assignable.includes(r))
+          const name = member.user.name || member.user.email
+          return (
+            <li key={member.user._id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-subtle text-sm font-medium">
+                {name[0].toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {name}
+                  {isMe && <span className="font-normal text-muted"> (aap)</span>}
+                </p>
+                <p className="truncate text-xs text-muted">{member.user.email}</p>
+              </div>
 
-      <section>
-        <h2 className={cn(titleText, 'mb-3')}>Members ({activeOrg.members.length})</h2>
-        <ul className={cn(panel, 'divide-y divide-border')}>
-          {activeOrg.members.map((member) => {
-            const isMe = member.userId === ME_ID
-            const manageable = canManageMember(role, member.role)
-            const options = manageable ? assignableRoles(role) : [member.role]
-            const name = memberName(activeOrg, member.userId, user)
-            return (
-              <li key={member.userId} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-subtle text-sm font-medium">
-                  {name[0].toUpperCase()}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{name}</p>
-                  <p className="truncate text-xs text-muted">{memberEmail(member, user)}</p>
-                </div>
-                {/* chaudai wrapper se — input khud w-full hai, us par doosri width nahi jodte */}
+              {manageable ? (
+                // chaudai wrapper se — input khud w-full hai
                 <div className="w-28">
                   <select
                     className={input}
                     value={member.role}
-                    onChange={(e) => onResult(changeRole(member, e.target.value))}
-                    disabled={!manageable}
-                    title={manageable ? undefined : deniedReason(role)}
+                    onChange={(e) => handleRole(member, e.target.value)}
+                    disabled={busy}
                     aria-label={`${name} ka role`}
                   >
-                    {/* dropdown mein maujooda role hamesha — chahe actor use assign na kar sake */}
-                    {[...new Set([member.role, ...options])].map((r) => (
+                    {options.map((r) => (
                       <option key={r} value={r}>
                         {r}
                       </option>
                     ))}
                   </select>
                 </div>
-                {isMe ? (
-                  <button type="button" className={button({ variant: 'secondary', size: 'sm' })} onClick={() => onResult(leaveOrg())}>
-                    <LogOutIcon />
-                    Chhodo
-                  </button>
-                ) : (
+              ) : (
+                <span className={badge} title={isMe ? undefined : deniedReason(myRole)}>
+                  {member.role}
+                </span>
+              )}
+
+              {isMe ? (
+                <button type="button" className={button({ variant: 'secondary', size: 'sm' })} onClick={handleLeave} disabled={busy}>
+                  <LogOutIcon />
+                  {confirming === 'leave' ? 'Pakka chhodna?' : 'Chhodo'}
+                </button>
+              ) : (
+                manageable && (
                   <button
                     type="button"
-                    className={button({ variant: 'ghost', size: 'icon' })}
-                    onClick={() => onResult(removeMember(member))}
-                    disabled={!manageable}
-                    title={manageable ? 'Nikaalo' : deniedReason(role)}
+                    className={button({ variant: confirming === member.user._id ? 'danger' : 'ghost', size: confirming === member.user._id ? 'sm' : 'icon' })}
+                    onClick={() => handleRemove(member)}
+                    disabled={busy}
                     aria-label={`${name} ko nikaalo`}
+                    title="Nikaalo"
                   >
-                    <TrashIcon />
+                    {confirming === member.user._id ? 'Nikaalna?' : <TrashIcon />}
                   </button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className={cn(titleText, 'mb-3')}>Pending invites ({activeOrg.invites.length})</h2>
-        {activeOrg.invites.length === 0 ? (
-          <p className="text-small text-muted">Koi pending invite nahi.</p>
-        ) : (
-          <ul className={cn(panel, 'divide-y divide-border')}>
-            {activeOrg.invites.map((inv) => (
-              <li key={inv.email} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <MailIcon className="size-4 text-muted" />
-                <p className="min-w-0 flex-1 truncate text-sm">{inv.email}</p>
-                <span className={badge}>{inv.role}</span>
-                <span className="inline-flex items-center gap-1 text-xs text-muted">
-                  <ClockIcon className="size-3.5" />
-                  {hoursLeft(inv.expiresAt)}
-                </span>
-                <button
-                  type="button"
-                  className={button({ variant: 'ghost', size: 'sm' })}
-                  onClick={() => onResult(cancelInvite(inv.email))}
-                  disabled={!canInvite}
-                  title={canInvite ? undefined : deniedReason(role)}
-                >
-                  Cancel
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
+                )
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }

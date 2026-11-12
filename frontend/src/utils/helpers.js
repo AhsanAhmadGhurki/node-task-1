@@ -153,3 +153,12 @@ export function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+// login/register ke baad kahan jana hai (?next=/invitations/abc) — sirf apni site ke andar ka rasta,
+// warna "?next=https://evil.com" ya "//evil.com" se login ke baad doosri site par bheja ja sakta (open redirect)
+export function safeNext(value) {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) {
+    return '/dashboard'
+  }
+  return value
+}

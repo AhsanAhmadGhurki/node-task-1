@@ -9,6 +9,7 @@ import Profile from './pages/Profile'
 import Register from './pages/Register'
 import Tickets from './pages/Tickets'
 import Workspace from './pages/Workspace'
+import AcceptInvitation from './pages/AcceptInvitation'
 
 export default function App() {
   return (
@@ -37,16 +38,20 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          {/* orgs + roles (abhi mock data) — section: tasks / tickets / members; ghalat section par Workspace khud /tasks bhejta hai */}
-          <Route path="/workspace" element={<Navigate to="/workspace/tasks" replace />} />
-          <Route
-            path="/workspace/:section"
-            element={
-              <ProtectedRoute>
-                <Workspace />
-              </ProtectedRoute>
-            }
-          />
+          {/* orgs + roles (asli API) — /workspace pehli org par le jaata hai; section: members / invitations / settings */}
+          {["/workspace", "/workspace/:orgId", "/workspace/:orgId/:section"].map((path) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <ProtectedRoute>
+                  <Workspace />
+                </ProtectedRoute>
+              }
+            />
+          ))}
+          {/* email ke invite link — login ke bina bhi khulta hai (page khud login/register par bhejta hai) */}
+          <Route path="/invitations/:token" element={<AcceptInvitation />} />
           <Route
             path="/profile"
             element={

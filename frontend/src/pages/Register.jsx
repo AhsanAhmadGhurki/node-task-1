@@ -1,7 +1,7 @@
 // /register — do screens: pehle account banao, phir email par aaya 6-digit code
 // code sahi hote hi seedha login aur dashboard — password dobara nahi poochte
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { register } from '../api/authApi'
 import Alert from '../components/Alert'
 import AuthLayout from '../components/AuthLayout'
@@ -10,11 +10,14 @@ import VerifyEmail from '../components/VerifyEmail'
 import { useAuth } from '../hooks/useAuth'
 import { ArrowLeftIcon, CheckIcon } from '../ui/icons'
 import { button, cn, field, form, input, label, link } from '../ui/styles'
-import { passwordChecks, passwordRuleError, toAlert } from '../utils/helpers'
+import { passwordChecks, passwordRuleError, safeNext, toAlert } from '../utils/helpers'
 
 export default function Register() {
   const { token, login } = useAuth()
   const navigate = useNavigate()
+  // invite link se aaye (?next=/invitations/...) to login ke baad wahin wapas — warna dashboard
+  const [searchParams] = useSearchParams()
+  const next = safeNext(searchParams.get('next'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [alert, setAlert] = useState(null)
@@ -25,7 +28,7 @@ export default function Register() {
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
 
   if (token) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={next} replace />
   }
 
   async function handleSubmit(e) {
@@ -59,7 +62,7 @@ export default function Register() {
   // code sahi — backend ne login bhi kar diya (token + refresh cookie)
   function handleVerified(data) {
     login(data)
-    navigate('/dashboard', { replace: true })
+    navigate(next, { replace: true })
   }
 
   // galat email likha tha — form par wapas (password bhi saaf, dobara likhwao)
@@ -101,7 +104,7 @@ export default function Register() {
       footer={
         <>
           Pehle se account hai?{' '}
-          <Link to="/login" className={link}>
+          <Link to={`/login${searchParams.size ? `?${searchParams}` : ""}`} className={link}>
             Login karein
           </Link>
         </>
@@ -153,7 +156,7 @@ export default function Register() {
       {alreadyRegistered && (
         <p className="mt-4 text-sm text-muted">
           Is email se account pehle se hai —{' '}
-          <Link to="/login" className={link}>
+          <Link to={`/login${searchParams.size ? `?${searchParams}` : ""}`} className={link}>
             Login karein
           </Link>
           .
