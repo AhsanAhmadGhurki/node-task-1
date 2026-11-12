@@ -60,6 +60,9 @@ function setupTestApp(name, { realLimiters = false } = {}) {
   const emailService = require(path.join(SRC, "services", "emailService"));
   const sentEmails = [];
   emailService.sendOtpEmail = (email, otp, purpose) => sentEmails.push({ email, otp, purpose });
+  // invite emails — link (us mein token) yahan pakadte hain
+  const sentInvites = [];
+  emailService.sendInviteEmail = (email, details) => sentInvites.push({ email, ...details });
 
   // app ke console.log (har request ka log) test output mein na aaye
   console.log = () => {};
@@ -68,7 +71,10 @@ function setupTestApp(name, { realLimiters = false } = {}) {
   const app = require(path.join(SRC, "app"));
   const config = require(path.join(SRC, "config"));
 
-  const ctx = { mongoose, config, sentEmails, baseUrl: null, server: null };
+  const ctx = { mongoose, config, sentEmails, sentInvites, baseUrl: null, server: null };
+
+  // is email ko aakhri bheje gaye invite ka token (link ka aakhri hissa)
+  ctx.inviteTokenFor = (email) => sentInvites.filter((m) => m.email === email).at(-1)?.url.split("/").pop();
 
   ctx.codesFor = (email) => sentEmails.filter((m) => m.email === email).map((m) => m.otp);
 
@@ -102,7 +108,9 @@ function setupTestApp(name, { realLimiters = false } = {}) {
     await mongoose.connection.db.dropDatabase();
     // createIndexes, init() nahi — init() ka promise cache hota hai: connect par chala auto-index drop se PEHLE
     // poora ho jaye to drop use mita deta aur init() dobara nahi banata (unique email index ke baghair tests chalte)
-    await Promise.all(["User", "Otp", "RefreshToken", "Task", "Ticket", "File"].map((model) => mongoose.model(model).createIndexes()));
+    // model file seedha require — jo model abhi kisi route ne load nahi kiya (jaise Invitation) woh bhi register ho
+    const models = ["User", "Otp", "RefreshToken", "Task", "Ticket", "File", "Organization", "OrganizationMember", "Invitation"];
+    await Promise.all(models.map((model) => require(path.join(SRC, "models", model)).createIndexes()));
     ctx.server = app.listen(0);
     await new Promise((resolve) => ctx.server.once("listening", resolve));
     ctx.baseUrl = `http://127.0.0.1:${ctx.server.address().port}`;

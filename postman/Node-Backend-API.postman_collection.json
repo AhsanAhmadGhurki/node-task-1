@@ -45,6 +45,11 @@
       "type": "string"
     },
     {
+      "key": "userCEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "verifyOtpA",
       "value": "",
       "type": "string"
@@ -109,7 +114,8 @@
                   "// @example.test — test data pehchanna aur baad mein mitana aasaan",
                   "const id = Date.now();",
                   "pm.collectionVariables.set(\"userAEmail\", `pm-a-${id}@example.test`);",
-                  "pm.collectionVariables.set(\"userBEmail\", `pm-b-${id}@example.test`);"
+                  "pm.collectionVariables.set(\"userBEmail\", `pm-b-${id}@example.test`);",
+                  "pm.collectionVariables.set(\"userCEmail\", `pm-c-${id}@example.test`);"
                 ]
               }
             },
@@ -237,6 +243,49 @@
           }
         },
         {
+          "name": "Unverified User Login (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// verify se pehle login (yani token) nahi milta — is liye unverified user org bana hi nahi sakta",
+                  "pm.test(\"Status 403\", () => {",
+                  "  pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"Message asks to verify email\", () => {",
+                  "  pm.expect(pm.response.json().message).to.match(/verify your email/);",
+                  "});",
+                  "pm.test(\"loginToken nahi mila\", () => {",
+                  "  pm.expect(pm.response.json()).to.not.have.property(\"loginToken\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login/request-otp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "Verify Email User B",
           "event": [
             {
@@ -252,7 +301,9 @@
                   "  pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
                   "});",
                   "// B ka token collection variable mein — accessToken (User A) ko nahi chhedte",
-                  "pm.collectionVariables.set(\"userBToken\", body.token);"
+                  "pm.collectionVariables.set(\"userBToken\", body.token);",
+                  "// B ka user id — member/newOwner wale tests",
+                  "pm.environment.set(\"memberId\", body.user._id);"
                 ]
               }
             }
@@ -339,7 +390,9 @@
                   "  pm.expect(body.user.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
                   "});",
                   "// yahi asal kaam — token environment mein, baqi saari protected requests {{accessToken}} use karti hain",
-                  "pm.environment.set(\"accessToken\", body.token);"
+                  "pm.environment.set(\"accessToken\", body.token);",
+                  "// A (owner) ka user id",
+                  "pm.environment.set(\"ownerId\", body.user._id);"
                 ]
               }
             }
@@ -941,6 +994,2228 @@
               }
             ],
             "url": "{{baseUrl}}/files/{{otherUserFileId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orgs",
+      "description": "User A owner; User B invite (devToken) se admin, phir member, viewer, phir owner (transfer). Backend mein EXPOSE_DEV_OTP=true zaroori.",
+      "item": [
+        {
+          "name": "Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Banane wala owner, ownerCount 1\", () => {",
+                  "  pm.expect(body.role).to.eql(\"owner\");",
+                  "  pm.expect(body.org.name).to.eql(\"Postman Org\");",
+                  "  pm.expect(body.org.ownerCount).to.eql(1);",
+                  "});",
+                  "pm.environment.set(\"orgId\", body.org._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Org\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Organization - Empty Name (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error name field par\", () => {",
+                  "  pm.expect(pm.response.json().errors[0].field).to.eql(\"name\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"   \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Second Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// isolation tests ke liye — User B is ka member nahi",
+                  "pm.test(\"Status 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Role owner\", () => {",
+                  "  pm.expect(pm.response.json().role).to.eql(\"owner\");",
+                  "});",
+                  "pm.environment.set(\"otherOrgId\", pm.response.json().org._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Other Org\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get My Organizations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Dono orgs, har ek mein role owner\", () => {",
+                  "  const orgs = pm.response.json().orgs;",
+                  "  const mine = orgs.filter((o) => [pm.environment.get(\"orgId\"), pm.environment.get(\"otherOrgId\")].includes(o._id));",
+                  "  pm.expect(mine).to.have.lengthOf(2);",
+                  "  pm.expect(mine.every((o) => o.role === \"owner\")).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs"
+          }
+        },
+        {
+          "name": "Get Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Sahi org aur role\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.org._id).to.eql(pm.environment.get(\"orgId\"));",
+                  "  pm.expect(body.role).to.eql(\"owner\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs/{{orgId}}"
+          }
+        },
+        {
+          "name": "Rename Organization (Owner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Naya naam (trim)\", () => {",
+                  "  pm.expect(pm.response.json().org.name).to.eql(\"Postman Org Renamed\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs/{{orgId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"  Postman Org Renamed  \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Non-Member Gets Organization (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// B abhi member nahi — org ka hona bhi na pata chale: 404, 403 nahi",
+                  "pm.test(\"Status 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message: Organization not found\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Organization not found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs/{{orgId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userBToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invitations",
+          "description": "User B ko invite (devToken) se admin banana; replace, cancel, wrong email, invalid token",
+          "item": [
+            {
+              "name": "Send Invitation (Owner → Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 201\", () => {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "const body = pm.response.json();",
+                      "pm.test(\"Invite pending, tokenHash nahi\", () => {",
+                      "  pm.expect(body.invitation.status).to.eql(\"pending\");",
+                      "  pm.expect(body.invitation.role).to.eql(\"admin\");",
+                      "  pm.expect(body.invitation).to.not.have.property(\"tokenHash\");",
+                      "});",
+                      "pm.test(\"devToken mila (EXPOSE_DEV_OTP=true, sirf development)\", () => {",
+                      "  pm.expect(body.devToken).to.match(/^[A-Za-z0-9_-]{43}$/);",
+                      "});",
+                      "pm.test(\"Expiry 48 ghante\", () => {",
+                      "  const ms = new Date(body.invitation.expiresAt) - new Date(body.invitation.createdAt);",
+                      "  pm.expect(ms).to.eql(48 * 60 * 60 * 1000);",
+                      "});",
+                      "pm.environment.set(\"inviteToken\", body.devToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"role\": \"admin\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Send Invitation - Owner Role (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 400\", () => {",
+                      "  pm.response.to.have.status(400);",
+                      "});",
+                      "pm.test(\"Message: Role must be one of: admin, member, viewer\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Role must be one of: admin, member, viewer\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userCEmail}}\",\n  \"role\": \"owner\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Send Invitation - Invalid Email (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 400\", () => {",
+                      "  pm.response.to.have.status(400);",
+                      "});",
+                      "pm.test(\"Error email field par\", () => {",
+                      "  pm.expect(pm.response.json().errors[0].field).to.eql(\"email\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"not-an-email\",\n  \"role\": \"member\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Validate Invitation",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// login ke bina, sirf API key — invite page ke liye",
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Org ka naam, role, email; tokenHash nahi\", () => {",
+                      "  const inv = pm.response.json().invitation;",
+                      "  pm.expect(inv.org.name).to.eql(\"Postman Org Renamed\");",
+                      "  pm.expect(inv.role).to.eql(\"admin\");",
+                      "  pm.expect(inv.email).to.eql(pm.collectionVariables.get(\"userBEmail\"));",
+                      "  pm.expect(pm.response.text()).to.not.include(\"tokenHash\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/{{inviteToken}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Accept Invitation - Wrong Email (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// User A (doosra email) B ka invite accept kare — 403",
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message: This invitation was sent to a different email address. Log i\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"This invitation was sent to a different email address. Log in with that email to accept it.\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/{{inviteToken}}/accept"
+              }
+            },
+            {
+              "name": "Accept Invitation (Invited User)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Admin ban gaya, sahi org\", () => {",
+                      "  const body = pm.response.json();",
+                      "  pm.expect(body.role).to.eql(\"admin\");",
+                      "  pm.expect(body.org._id).to.eql(pm.environment.get(\"orgId\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/{{inviteToken}}/accept",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Verify Membership After Accept",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// DB ki halat — B ab member hai aur role admin",
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"B ka role admin\", () => {",
+                      "  pm.expect(pm.response.json().role).to.eql(\"admin\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Accept Invitation Again (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 409\", () => {",
+                      "  pm.response.to.have.status(409);",
+                      "});",
+                      "pm.test(\"Message: This invitation has already been accepted\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"This invitation has already been accepted\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/{{inviteToken}}/accept",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Send Invitation - Existing Member (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 409\", () => {",
+                      "  pm.response.to.have.status(409);",
+                      "});",
+                      "pm.test(\"Message: This email already belongs to a member of this organization\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"This email already belongs to a member of this organization\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Send Invitation (Admin → Member)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// admin bhi invite bhej sakta hai (member/viewer)",
+                      "pm.test(\"Status 201\", () => {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Pending invite\", () => {",
+                      "  pm.expect(pm.response.json().invitation.status).to.eql(\"pending\");",
+                      "});",
+                      "pm.environment.set(\"replacedInviteToken\", pm.response.json().devToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userCEmail}}\",\n  \"role\": \"member\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Re-send Invitation (Replaces Old Token)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 201\", () => {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Message says old link replaced\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/previous link no longer works/);",
+                      "});",
+                      "pm.test(\"Naya token purane se alag\", () => {",
+                      "  pm.expect(pm.response.json().devToken).to.not.eql(pm.environment.get(\"replacedInviteToken\"));",
+                      "});",
+                      "pm.environment.set(\"pendingInviteId\", pm.response.json().invitation._id);",
+                      "pm.environment.set(\"pendingInviteToken\", pm.response.json().devToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userCEmail}}\",\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Accept Replaced Invitation (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// purana token band — replaced/expired dono 410 (expired ka test npm test mein: Postman waqt aage nahi kar sakta)",
+                      "pm.test(\"Status 410\", () => {",
+                      "  pm.response.to.have.status(410);",
+                      "});",
+                      "pm.test(\"Message says replaced\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/newer invitation/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/{{replacedInviteToken}}/accept",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Admin Invites As Admin (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message: Your role (admin) can't invite someone as admin\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Your role (admin) can't invite someone as admin\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userCEmail}}\",\n  \"role\": \"admin\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "List Invitations",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Sirf C ka pending invite (accepted/replaced nahi), tokenHash nahi\", () => {",
+                      "  const list = pm.response.json().invitations;",
+                      "  pm.expect(list).to.have.lengthOf(1);",
+                      "  pm.expect(list[0].email).to.eql(pm.collectionVariables.get(\"userCEmail\"));",
+                      "  pm.expect(list[0].expired).to.eql(false);",
+                      "  pm.expect(pm.response.text()).to.not.include(\"tokenHash\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations"
+              }
+            },
+            {
+              "name": "Cancel Invitation (Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Message: Invitation cancelled\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Invitation cancelled\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations/{{pendingInviteId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Validate Cancelled Invitation (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Message: Invitation not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Invitation not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/{{pendingInviteToken}}",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Validate Invalid Token (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Message: Invitation not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Invitation not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/not-a-real-token",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Members",
+          "description": "B ka role admin → member → viewer, har role ke tests; last owner; cross-org isolation; remove",
+          "item": [
+            {
+              "name": "List Members",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Owner pehle, phir admin; password nahi\", () => {",
+                      "  const list = pm.response.json().members;",
+                      "  pm.expect(list.map((m) => m.role)).to.eql([\"owner\", \"admin\"]);",
+                      "  pm.expect(list[1].user._id).to.eql(pm.environment.get(\"memberId\"));",
+                      "  pm.expect(pm.response.text()).to.not.include(\"password\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members"
+              }
+            },
+            {
+              "name": "Get Member Details",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"B ka email aur role\", () => {",
+                      "  const m = pm.response.json().member;",
+                      "  pm.expect(m.user.email).to.eql(pm.collectionVariables.get(\"userBEmail\"));",
+                      "  pm.expect(m.role).to.eql(\"admin\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}"
+              }
+            },
+            {
+              "name": "Get Non-Member (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Message: Member not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Member not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/000000000000000000000000"
+              }
+            },
+            {
+              "name": "Admin Renames Organization",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Naam badla\", () => {",
+                      "  pm.expect(pm.response.json().org.name).to.eql(\"Postman Org\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Postman Org\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Admin Removes Owner (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message: Your role (admin) can't remove an owner\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Your role (admin) can't remove an owner\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{ownerId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Admin Deletes Organization (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message needs owner\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/owner role or higher/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Change Role: Admin → Member (Owner)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Role member\", () => {",
+                      "  pm.expect(pm.response.json().member.role).to.eql(\"member\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}/role",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"member\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Member Sends Invitation (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message needs admin\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/admin role or higher/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/invitations",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userCEmail}}\",\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Member Changes Role (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message needs admin\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/admin role or higher/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{ownerId}}/role",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Change Role: Member → Viewer (Owner)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Role viewer\", () => {",
+                      "  pm.expect(pm.response.json().member.role).to.eql(\"viewer\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}/role",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Viewer Lists Members (Read Access)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Viewer bhi list dekh sakta hai\", () => {",
+                      "  pm.expect(pm.response.json().members).to.have.lengthOf(2);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Viewer Renames Organization (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message needs admin\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/admin role or higher \\(your role: viewer\\)/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Hacked\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Change Role - Invalid Role (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 400\", () => {",
+                      "  pm.response.to.have.status(400);",
+                      "});",
+                      "pm.test(\"Message: Role must be one of: owner, admin, member, viewer\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Role must be one of: owner, admin, member, viewer\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}/role",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"superadmin\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Last Owner Demotes Self (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 400\", () => {",
+                      "  pm.response.to.have.status(400);",
+                      "});",
+                      "pm.test(\"Message last owner\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/at least one owner/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{ownerId}}/role",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"admin\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Last Owner Leaves (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 400\", () => {",
+                      "  pm.response.to.have.status(400);",
+                      "});",
+                      "pm.test(\"Message: You are the last owner. Make another member an owner before \", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"You are the last owner. Make another member an owner before leaving the organization.\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/leave"
+              }
+            },
+            {
+              "name": "Cross-Org: Get Other Organization (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// B Postman Org ka member hai, Other Org ka nahi — valid id ke saath bhi 404",
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Message: Organization not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Organization not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Cross-Org: List Other Org Members (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Message: Organization not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Organization not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}/members",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Cross-Org: Rename Other Organization (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Message: Organization not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Organization not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Hacked\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Invite B To Other Org (Setup)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 201\", () => {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"devToken mila\", () => {",
+                      "  pm.expect(pm.response.json().devToken).to.be.a(\"string\");",
+                      "});",
+                      "pm.environment.set(\"inviteToken\", pm.response.json().devToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}/invitations",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Accept Other Org Invitation (Setup)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Viewer bana\", () => {",
+                      "  pm.expect(pm.response.json().role).to.eql(\"viewer\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/{{inviteToken}}/accept",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Remove Member (Owner)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"B nikal gaya\", () => {",
+                      "  const m = pm.response.json().member;",
+                      "  pm.expect(m.user).to.eql(pm.environment.get(\"memberId\"));",
+                      "  pm.expect(m.role).to.eql(\"viewer\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}/members/{{memberId}}"
+              }
+            },
+            {
+              "name": "Removed Member Access (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// nikalne ke baad org bilkul nahi dikhti",
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Message: Organization not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Organization not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ownership",
+          "description": "Ghalat password, viewer, sahi transfer, baad ki halat",
+          "item": [
+            {
+              "name": "Transfer Ownership - Wrong Password (Failure Test)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.environment.set(\"newOwnerId\", pm.environment.get(\"memberId\"));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message: Incorrect password\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Incorrect password\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/transfer-ownership",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"newOwnerId\": \"{{newOwnerId}}\",\n  \"password\": \"Ghalat1234!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Transfer Ownership - Viewer Attempt (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message needs owner\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/owner role or higher/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/transfer-ownership",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"newOwnerId\": \"{{ownerId}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Transfer Ownership",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"B owner, A admin; password response mein nahi\", () => {",
+                      "  const body = pm.response.json();",
+                      "  pm.expect(body.newOwner.user._id).to.eql(pm.environment.get(\"newOwnerId\"));",
+                      "  pm.expect(body.newOwner.role).to.eql(\"owner\");",
+                      "  pm.expect(body.previousOwner.role).to.eql(\"admin\");",
+                      "  pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get(\"testPassword\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/transfer-ownership",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"newOwnerId\": \"{{newOwnerId}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Verify Roles After Transfer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"B ab owner, ownerCount 1\", () => {",
+                      "  const body = pm.response.json();",
+                      "  pm.expect(body.role).to.eql(\"owner\");",
+                      "  pm.expect(body.org.ownerCount).to.eql(1);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Previous Owner Deletes Organization (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// A ab admin hai",
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Message role admin\", () => {",
+                      "  pm.expect(pm.response.json().message).to.match(/your role: admin/);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}"
+              }
+            },
+            {
+              "name": "Previous Owner Leaves",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Message: You left the organization\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"You left the organization\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/leave"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Organization (New Owner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Org aur us ka data mita (1 member, invites)\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.message).to.eql(\"Organization deleted\");",
+                  "  pm.expect(body.deleted.members).to.eql(1);",
+                  "  pm.expect(body.deleted.invitations).to.be.at.least(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs/{{orgId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userBToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Deleted Organization (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message: Organization not found\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Organization not found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs/{{orgId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userBToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Second Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Message: Organization deleted\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Organization deleted\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/orgs/{{otherOrgId}}"
           }
         }
       ]

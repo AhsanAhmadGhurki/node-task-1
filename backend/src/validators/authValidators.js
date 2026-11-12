@@ -63,13 +63,15 @@ const verifyEmailRules = [
   newPasswordRule()
 ];
 
-// POST /auth/login — password ke naye rules NAHI (purane passwords wale users login kar sakein), sirf required + 72 bytes
-const loginRules = [
-  emailRule(),
-  requiredString("password", "Password")
+// maujooda password (login, ownership transfer) — naye password ke rules NAHI (purane passwords wale bhi chalein), sirf required + 72 bytes
+function currentPasswordRule() {
+  return requiredString("password", "Password")
     .notEmpty().withMessage("Password is required").bail()
-    .custom(passwordNotTooLong).withMessage(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`)
-];
+    .custom(passwordNotTooLong).withMessage(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`);
+}
+
+// POST /auth/login
+const loginRules = [emailRule(), currentPasswordRule()];
 
 // POST /auth/login/request-otp — login jaise hi rules (email + password), code isi ke baad jaata hai
 // POST /auth/login/verify-otp — request-otp ka loginToken (64 hex) + bilkul 6 digit ka code
@@ -79,4 +81,4 @@ const verifyLoginOtpRules = [
   requiredString("otp", "Code").matches(/^\d{6}$/).withMessage("Code must be 6 digits")
 ];
 
-module.exports = { registerRules, verifyEmailRules, loginRules, verifyLoginOtpRules };
+module.exports = { registerRules, verifyEmailRules, loginRules, verifyLoginOtpRules, emailRule, currentPasswordRule };

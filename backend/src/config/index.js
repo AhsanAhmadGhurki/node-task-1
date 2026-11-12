@@ -8,6 +8,8 @@ module.exports = {
   // backend ka public address — https ho to refresh cookie "Secure" lagti hai
   // production mein sirf .env mein badlo (jaise https://api.example.com); aakhri "/" hata do
   appUrl: (process.env.APP_URL || `http://localhost:${port}`).replace(/\/+$/, ""),
+  // frontend ka address — invite email ka link <frontendUrl>/invitations/<token> (frontend page token se API bulata hai)
+  frontendUrl: (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, ""),
   // connection string .env se — password code mein nahi likhte
   mongoUri: process.env.MONGO_URI,
   apiKey: process.env.API_KEY,

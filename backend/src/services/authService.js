@@ -395,6 +395,37 @@ async function userExists(userId) {
 }
 
 // login ka code bhej diya
+// password dobara (jaise ownership transfer) — login wali hi lockout ginti: chori ke token se password ka andaza
+// lagane wala bhi 5 galtiyon par band (423). ghalat par 403, 401 nahi — frontend 401 par token refresh kar ke dobara
+// bhejta (session expire samajhta); yahan token theek hai, sirf password ghalat
+const INCORRECT_PASSWORD = "Incorrect password";
+
+async function confirmPassword(userId, password) {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new UnauthorizedError("Invalid or expired token");
+  }
+  if (user.lockUntil && user.lockUntil > new Date()) {
+    throw lockedError(user.lockUntil);
+  }
+
+  if (!(await bcrypt.compare(password, user.password))) {
+    try {
+      // hamesha throw karta hai — 401 (ginti +1) ya 423 (5vi galti / pehle se band)
+      await recordFailedLogin(user._id);
+    } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        throw new ForbiddenError(INCORRECT_PASSWORD);
+      }
+      throw err;
+    }
+  }
+
+  if (user.failedLoginAttempts > 0 || user.lockUntil) {
+    await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, lockUntil: null } });
+  }
+}
+
 const LOGIN_CODE_SENT = "A login code has been sent to your email.";
 
 // POST /auth/login/request-otp — 2FA ka pehla qadam: email + password sahi hon to email par login code
@@ -534,6 +565,7 @@ module.exports = {
   refreshSession,
   logout,
   userExists,
+  confirmPassword,
   // controller ko cookie ki umar isi se — DB expiry ke barabar
   REFRESH_TOKEN_TTL_MS,
   resendVerification

@@ -46,7 +46,13 @@ test("spec mein har endpoint hai, aur har response ka koi example/schema", async
     "GET /tasks", "POST /tasks", "GET /tasks/{id}", "PUT /tasks/{id}", "DELETE /tasks/{id}",
     "POST /user/upload-avatar", "GET /user/profile", "PATCH /user/profile",
     "GET /tickets", "POST /tickets", "GET /tickets/{id}",
-    "POST /files/{fileId}/signed-url", "GET /files/{fileId}"
+    "POST /files/{fileId}/signed-url", "GET /files/{fileId}",
+    "GET /orgs", "POST /orgs", "GET /orgs/{orgId}", "PATCH /orgs/{orgId}", "DELETE /orgs/{orgId}",
+    "GET /orgs/{orgId}/members", "GET /orgs/{orgId}/members/{userId}",
+    "DELETE /orgs/{orgId}/members/{userId}", "PATCH /orgs/{orgId}/members/{userId}/role",
+    "POST /orgs/{orgId}/leave", "POST /orgs/{orgId}/transfer-ownership",
+    "GET /orgs/{orgId}/invitations", "POST /orgs/{orgId}/invitations", "DELETE /orgs/{orgId}/invitations/{inviteId}",
+    "GET /invitations/{token}", "POST /invitations/{token}/accept"
   ];
   assert.deepEqual(documented.sort(), expected.sort());
 

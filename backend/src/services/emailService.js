@@ -95,7 +95,70 @@ async function sendOtpEmail(email, otp, purpose) {
   }
 }
 
+// org ka naam / bhejne wale ka naam user ka likha hua hai — HTML mein jaane se pehle escape, warna email mein
+// <a href=...> ya <img> ghus sakta (phishing). text wale hisse mein HTML ka sawal nahi
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// invite email — link <FRONTEND_URL>/invitations/<token>; 48 ghante ka zikr Invitation model ki muddat se
+function inviteEmailContent({ orgName, role, inviterName, url, expiresInHours }) {
+  const subject = `You're invited to join ${orgName} on TaskDesk`;
+  const intro = `${inviterName} invited you to join ${orgName} as ${role === "admin" ? "an" : "a"} ${role}.`;
+  const footer = `This invitation expires in ${expiresInHours} hours and can be used once. Log in with this email address to accept it. If you weren't expecting it, you can ignore this email.`;
+  const safe = { intro: escapeHtml(intro), url: escapeHtml(url), footer: escapeHtml(footer) };
+  return {
+    subject,
+    text: `${intro}\n\nAccept the invitation: ${url}\n\n${footer}`,
+    html: `
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;font-family:Arial,Helvetica,sans-serif">
+  <tr><td align="center">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:10px;border:1px solid #e5e7eb">
+      <tr><td style="padding:32px 28px;text-align:center">
+        <h1 style="margin:0 0 12px;font-size:22px;color:#111827">You're invited</h1>
+        <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#4b5563">${safe.intro}</p>
+        <a href="${safe.url}" style="display:inline-block;margin:0 0 24px;padding:12px 20px;background:#2563eb;color:#ffffff;border-radius:6px;font-size:15px;font-weight:bold;text-decoration:none">Accept invitation</a>
+        <p style="margin:0 0 12px;font-size:12px;color:#6b7280;word-break:break-all">${safe.url}</p>
+        <p style="margin:0;font-size:13px;color:#9ca3af">${safe.footer}</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`
+  };
+}
+
+// await nahi kiya jaata (sendOtpEmail jaisa) — email fail ho to invite phir bhi bana; admin dobara bhej sakta hai
+async function sendInviteEmail(email, details) {
+  const content = inviteEmailContent(details);
+
+  // SMTP nahi — development mein link dekhne ka yahi rasta (OTP jaisa); SMTP ho to link kabhi log nahi hota
+  if (!transporter) {
+    console.log(`[dev — SMTP not configured] Invitation link for ${email}: ${details.url}`);
+    return;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"Tasks API" <${config.smtp.user}>`,
+      to: email,
+      subject: content.subject,
+      text: content.text,
+      html: content.html
+    });
+    console.log(`Invitation email sent to ${email}`);
+  } catch (err) {
+    console.error(`Invitation email to ${email} failed:`, err.message);
+  }
+}
+
 module.exports = {
   sendOtpEmail,
-  otpEmailContent
+  otpEmailContent,
+  sendInviteEmail,
+  inviteEmailContent
 };

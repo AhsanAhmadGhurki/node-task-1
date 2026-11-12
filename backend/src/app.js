@@ -14,6 +14,8 @@ const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const ticketRoutes = require("./routes/ticketRoutes");
 const fileRoutes = require("./routes/fileRoutes");
+const orgRoutes = require("./routes/orgRoutes");
+const invitationRoutes = require("./routes/invitationRoutes");
 
 const app = express();
 
@@ -67,6 +69,12 @@ app.use("/tickets", authMiddleware, ticketRoutes);
 // /files/:fileId — har uploaded file (avatar, attachment) yahin se: token (401) → hai? (404) → tumhari? (403) → stream
 // ya 10 minute ka signed link (<img src> header nahi bhej sakta) — is liye auth yahan nahi, fileRoutes har route par lagata hai
 app.use("/files", fileRoutes);
+
+// orgs (workspaces) — token sab par; /orgs/:orgId ke neeche role ka check routes mein requireRole se
+app.use("/orgs", authMiddleware, orgRoutes);
+
+// email ke invite link — GET sirf API key (login se pehle bhi), accept par token route ke andar
+app.use("/invitations", invitationRoutes);
 
 // koi route match nahi hua
 app.use(notFoundMiddleware);

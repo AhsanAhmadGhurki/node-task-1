@@ -1,5 +1,6 @@
 // Postman/Newman collection ke banaye test users aur unka saara data mitao
 // sirf pm-a-<number>@example.test / pm-b-<number>@example.test — kisi asli ya QA account ko haath nahi lagata
+// orgs: jo in users ne banayin (us ke saare members/invites), un ki memberships, aur pm-* emails ke invites
 // chalao: npm run postman:cleanup (backend/ se)
 const fs = require("fs");
 const path = require("path");
@@ -7,6 +8,8 @@ const mongoose = require("mongoose");
 const config = require("../src/config");
 
 const TEST_EMAIL = /^pm-[ab]-\d+@example\.test$/;
+// invite sirf in ko (C ka account nahi banta) — inhein bhi mitao
+const INVITE_EMAIL = /^pm-[abc]-\d+@example\.test$/;
 
 // in folders mein files ka naam "<userId>-..." hota hai
 const UPLOAD_DIRS = [config.avatarUploadDir, config.ticketAttachmentDir, config.ticketUploadTmpDir];
@@ -24,6 +27,16 @@ async function cleanup() {
     deleted[name] = (await db.collection(name).deleteMany({ user: { $in: ids } })).deletedCount;
   }
   deleted.fileRecords = (await db.collection("files").deleteMany({ owner: { $in: ids } })).deletedCount;
+
+  // collection beech mein ruk jaye to orgs bachti hain — test users ki banayi orgs aur un ka saara data
+  const orgIds = (await db.collection("organizations").find({ createdBy: { $in: ids } }).project({ _id: 1 }).toArray()).map((o) => o._id);
+  deleted.invitations = (
+    await db.collection("invitations").deleteMany({ $or: [{ org: { $in: orgIds } }, { email: INVITE_EMAIL }] })
+  ).deletedCount;
+  deleted.memberships = (
+    await db.collection("organizationmembers").deleteMany({ $or: [{ org: { $in: orgIds } }, { user: { $in: ids } }] })
+  ).deletedCount;
+  deleted.orgs = (await db.collection("organizations").deleteMany({ _id: { $in: orgIds } })).deletedCount;
   deleted.users = (await db.collection("users").deleteMany({ _id: { $in: ids } })).deletedCount;
 
   let diskFiles = 0;

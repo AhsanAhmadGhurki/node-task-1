@@ -181,6 +181,159 @@ components:
           type: integer
           example: 0
 
+    # org mein role — upar wala zyada taaqatwar; role user ka nahi, membership ka
+    Role:
+      type: string
+      enum: [owner, admin, member, viewer]
+      example: owner
+
+    # members aur role yahan nahi — OrganizationMember mein; ownerCount "aakhri owner" ka pehra
+    Organization:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6af5a1c2e9e08289510f9e01
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Acme Team
+        createdBy:
+          type: string
+          example: 6af2f02fa249d02b97a568ba
+        ownerCount:
+          type: integer
+          minimum: 1
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-12T09:15:00.000Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2026-11-12T09:15:00.000Z
+        __v:
+          type: integer
+          example: 0
+
+    # org ka ek member — user ki sirf ghair-hassas fields; role isi org ka
+    OrgMember:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            _id:
+              type: string
+              example: 6af2f02fa249d02b97a568ba
+            email:
+              type: string
+              format: email
+              example: ali@example.test
+            name:
+              type: string
+              nullable: true
+              example: Ali Khan
+            avatar:
+              type: string
+              nullable: true
+              example: null
+        role:
+          $ref: "#/components/schemas/Role"
+        joinedAt:
+          type: string
+          format: date-time
+          example: 2026-11-12T09:20:00.000Z
+
+    # org invite — tokenHash kabhi response mein nahi
+    Invitation:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6af5b2d1e9e08289510f9e44
+        org:
+          type: string
+          example: 6af5a1c2e9e08289510f9e01
+        email:
+          type: string
+          format: email
+          example: new.person@example.test
+        role:
+          type: string
+          enum: [admin, member, viewer]
+          example: member
+        status:
+          type: string
+          enum: [pending, accepted, replaced]
+          example: pending
+        invitedBy:
+          description: List mein { _id, name, email }; baaki jagah user id
+          oneOf:
+            - type: string
+            - type: object
+          example: 6af2f02fa249d02b97a568ba
+        expiresAt:
+          type: string
+          format: date-time
+          description: Banne ke theek 48 ghante baad
+          example: 2026-11-14T09:30:00.000Z
+        expired:
+          type: boolean
+          description: Sirf list mein — expiresAt guzar chuka
+          example: false
+        acceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        acceptedBy:
+          type: string
+          nullable: true
+          example: null
+        replacedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-12T09:30:00.000Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2026-11-12T09:30:00.000Z
+
+    # invite page ke liye — sirf dikhane layak (ids/hash nahi)
+    InvitationPreview:
+      type: object
+      properties:
+        org:
+          type: object
+          properties:
+            name:
+              type: string
+              example: Acme Team
+        email:
+          type: string
+          format: email
+          example: new.person@example.test
+        role:
+          type: string
+          enum: [admin, member, viewer]
+          example: member
+        invitedBy:
+          type: string
+          nullable: true
+          example: Ali Khan
+        expiresAt:
+          type: string
+          format: date-time
+          example: 2026-11-14T09:30:00.000Z
+
     # login / verify jawab — refresh token body mein kabhi nahi, sirf httpOnly cookie mein
     Session:
       type: object
@@ -213,6 +366,39 @@ components:
       schema:
         type: string
         example: 6af2f044a99254255b674961
+    # ghalat shakal ki id bhi 404 (400 nahi) — non-member ki tarah, kuch na bataye
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      description: Org ka _id (24 hex)
+      schema:
+        type: string
+        example: 6af5a1c2e9e08289510f9e01
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Member ka user _id (24 hex)
+      schema:
+        type: string
+        example: 6af2f02fa249d02b97a568ba
+    InviteId:
+      name: inviteId
+      in: path
+      required: true
+      description: Invite ka _id (24 hex) — list se
+      schema:
+        type: string
+        example: 6af5b2d1e9e08289510f9e44
+    InviteToken:
+      name: token
+      in: path
+      required: true
+      description: Email ke link ka aakhri hissa (43 characters, base64url)
+      schema:
+        type: string
+        example: Q2hhbmdlTWVJbkRldk9ubHlfX19fX19fX19fX19fX18
     FileId:
       name: fileId
       in: path
@@ -315,6 +501,103 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             message: Ticket not found
+
+    # org na ho, aap member na hon, ya id ghalat shakal ki — teeno 404 (Org B ka hona bhi na pata chale)
+    OrgNotFound:
+      description: Org nahi mili — ya aap us ke member nahi, ya id ghalat shakal ki
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Organization not found
+
+    # org nahi (ya aap member nahi) — ya woh user is org ka member nahi; dono 404
+    OrgOrMemberNotFound:
+      description: Org nahi mili / aap member nahi — ya woh user is org mein nahi (ghalat id bhi)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            org:
+              summary: Org nahi ya aap member nahi
+              value:
+                message: Organization not found
+            member:
+              summary: User is org ka member nahi
+              value:
+                message: Member not found
+
+    # do requests ek hi member ko ek saath badal rahi thin — dobara koshish karein
+    MemberChanged:
+      description: Member beech mein kisi aur request ne badal diya
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: This member was changed by another request. Please try again.
+
+    OrgOrInvitationNotFound:
+      description: Org nahi / aap member nahi — ya invite is org ka pending invite nahi
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            org:
+              summary: Org nahi ya aap member nahi
+              value:
+                message: Organization not found
+            invitation:
+              summary: Invite is org mein nahi (ya pehle hi accept/cancel)
+              value:
+                message: Invitation not found
+
+    InvitationNotFound:
+      description: Token kisi invite ka nahi (ya cancel ho chuka)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: Invitation not found
+
+    InvitationAccepted:
+      description: Invite pehle hi istemal ho chuka
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: This invitation has already been accepted
+
+    InvitationGone:
+      description: Link expire ho gaya (48 ghante) ya naye invite ne is ki jagah le li
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            expired:
+              summary: 48 ghante guzar gaye
+              value:
+                message: This invitation has expired. Ask an admin to send a new one.
+            replaced:
+              summary: Naya invite bheja gaya
+              value:
+                message: This invitation link is no longer valid because a newer invitation was sent
+
+    # member hai lekin role chhota (requireRole)
+    RoleForbidden:
+      description: Aap member hain lekin is kaam ke liye role chhota hai
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            message: "This action needs the admin role or higher (your role: member)"
 
     # na ho, ghalat id ki shakal, ya DB mein hai lekin disk par nahi — sab 404
     FileNotFound:

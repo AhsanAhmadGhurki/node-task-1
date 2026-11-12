@@ -72,15 +72,16 @@ function validateEnv(env = process.env) {
     }
   }
 
-  // email ke links isi se bante hain — galat ho to har link toota hua jaata
-  if (env.APP_URL) {
+  // APP_URL (refresh cookie ka Secure) aur FRONTEND_URL (invite email ka link) — galat ho to har link toota hua jaata
+  for (const name of ["APP_URL", "FRONTEND_URL"]) {
+    if (!env[name]) continue;
     try {
-      const { protocol } = new URL(env.APP_URL);
+      const { protocol } = new URL(env[name]);
       if (protocol !== "http:" && protocol !== "https:") {
-        errors.push("APP_URL must start with http:// or https://");
+        errors.push(`${name} must start with http:// or https://`);
       }
     } catch {
-      errors.push("APP_URL is not a valid URL");
+      errors.push(`${name} is not a valid URL`);
     }
   }
 
