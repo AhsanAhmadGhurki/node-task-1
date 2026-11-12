@@ -83,6 +83,11 @@
       "key": "otherUserFileId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "signedUrl",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -676,7 +681,269 @@
     },
     {
       "name": "Files",
-      "item": []
+      "item": [
+        {
+          "name": "User B Uploads File (Setup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// setup — User B ki apni file, taake neeche \"doosre user ki file\" test ho sake",
+                  "pm.test(\"Status 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const ticket = pm.response.json().ticket;",
+                  "pm.test(\"User B ki attachment bani\", () => {",
+                  "  pm.expect(ticket.attachments).to.have.lengthOf(1);",
+                  "});",
+                  "pm.collectionVariables.set(\"otherUserFileId\", ticket.attachments[0]._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userBToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "User B ka ticket",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Files folder ka setup",
+                  "type": "text"
+                },
+                {
+                  "key": "attachments",
+                  "type": "file",
+                  "src": "fixtures/sample.png"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/tickets"
+          }
+        },
+        {
+          "name": "Generate Signed URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Signed url aur expiresAt mile\", () => {",
+                  "  pm.expect(body.url).to.include(`/files/${pm.collectionVariables.get(\"fileId\")}`);",
+                  "  pm.expect(body.url).to.include(\"sig=\");",
+                  "  pm.expect(new Date(body.expiresAt).getTime()).to.be.above(Date.now());",
+                  "});",
+                  "pm.collectionVariables.set(\"signedUrl\", body.url);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/files/{{fileId}}/signed-url"
+          }
+        },
+        {
+          "name": "Get File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// JSON nahi, binary (PNG) — is liye body ki jagah headers aur size check",
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"PNG mili, cache nahi hogi\", () => {",
+                  "  pm.response.to.have.header(\"Content-Type\", \"image/png\");",
+                  "  pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"private, no-store\");",
+                  "  pm.expect(pm.response.responseSize).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/files/{{fileId}}"
+          }
+        },
+        {
+          "name": "Get File via Signed URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// token nahi — link (expires + sig) khud saboot hai; API key phir bhi chahiye",
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Bina token PNG mili\", () => {",
+                  "  pm.response.to.have.header(\"Content-Type\", \"image/png\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}{{signedUrl}}"
+          }
+        },
+        {
+          "name": "Missing File (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// sahi shakal ki id, lekin aisi koi file nahi — 404",
+                  "pm.test(\"Status 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message: File not found\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"File not found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/files/000000000000000000000000"
+          }
+        },
+        {
+          "name": "Upload Without File (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// avatar upload, lekin file bheji hi nahi — 400",
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Message: Avatar file is required\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Avatar file is required\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": []
+            },
+            "url": "{{baseUrl}}/user/upload-avatar"
+          }
+        },
+        {
+          "name": "Another User's File (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// User A ke token se User B ki file — 403 (files par 403, tickets par 404 — backend ka faisla)",
+                  "pm.test(\"Status 403\", () => {",
+                  "  pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"Message: no access\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"You do not have access to this file\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/files/{{otherUserFileId}}"
+          }
+        }
+      ]
     }
   ]
 }

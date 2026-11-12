@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node --env-file=.env src/index.js",
     "dev": "node --watch --env-file=.env src/index.js",
-    "test": "node --env-file=.env --test test/*.test.js"
+    "test": "node --env-file=.env --test test/*.test.js",
+    "test:postman": "node --env-file=.env scripts/postman-run.js",
+    "postman:cleanup": "node --env-file=.env scripts/postman-cleanup.js"
   },
   "keywords": [],
   "author": "",
@@ -25,5 +27,9 @@
     "nodemailer": "^10.0.13",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "newman": "^6.2.3",
+    "newman-reporter-htmlextra": "^1.23.1"
   }
 }
