@@ -8,7 +8,9 @@ import { MAX_TITLE_LENGTH } from '../utils/helpers'
 const CONFIRM_MS = 3000
 
 // onRename(task, title) true lautaye to edit band (fail par user ka likha hua na mitey — TaskForm jaisa)
-export default function TaskItem({ task, onToggle, onDelete, onRename, disabled }) {
+// workspace ke task: canToggle/canEdit/canDelete role se (button chhup jaate hain, asal rok backend ki);
+// creator — "kis ne banaya" ki line (personal task mein nahi)
+export default function TaskItem({ task, onToggle, onDelete, onRename, disabled, canToggle = true, canEdit = true, canDelete = true, creator }) {
   // null = edit band; string = input mein abhi wala title
   const [draft, setDraft] = useState(null)
   // pehla click — "Delete?" dikhao; doosra click — asal delete (galti se ek click mein task na jaye)
@@ -88,7 +90,7 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
 
   return (
     <li className="group flex min-h-12 items-center justify-between gap-3 px-4 py-2 transition-colors hover:bg-subtle/50">
-      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-sm">
+      <label className={cn('flex min-w-0 flex-1 items-center gap-3 text-sm', canToggle && 'cursor-pointer')}>
         {/* asli checkbox (keyboard, screen reader) — browser ka roop hata kar apna; tick icon peer-checked se */}
         <span className="relative flex size-4 shrink-0 items-center justify-center">
           <input
@@ -99,12 +101,15 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
             )}
             checked={task.completed}
             onChange={() => onToggle(task)}
-            disabled={disabled}
+            disabled={disabled || !canToggle}
           />
           <CheckIcon className="pointer-events-none absolute size-3 text-white opacity-0 peer-checked:opacity-100" strokeWidth={3.5} />
         </span>
-        {/* wrap-anywhere — lamba shabd (bina space) bhi agli line mein, row bahar na nikle */}
-        <span className={cn('wrap-anywhere transition-colors', task.completed && 'text-muted line-through')}>{task.title}</span>
+        <span className="flex min-w-0 flex-col">
+          {/* wrap-anywhere — lamba shabd (bina space) bhi agli line mein, row bahar na nikle */}
+          <span className={cn('wrap-anywhere transition-colors', task.completed && 'text-muted line-through')}>{task.title}</span>
+          {creator && <span className="truncate text-xs text-muted">{creator}</span>}
+        </span>
       </label>
       {/* mouse wale screen par hover/focus par hi dikhen (list saaf rahe); touch par hamesha; "Delete?" khula ho to bhi */}
       <span
@@ -113,7 +118,7 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
           !confirming && 'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100',
         )}
       >
-        {!confirming && (
+        {!confirming && canEdit && (
           <button
             className={button({ variant: 'ghost', size: 'icon' })}
             onClick={() => setDraft(task.title)}
@@ -124,16 +129,18 @@ export default function TaskItem({ task, onToggle, onDelete, onRename, disabled 
             <PencilIcon />
           </button>
         )}
-        <button
-          className={confirming ? button({ variant: 'danger', size: 'sm' }) : button({ variant: 'ghost', size: 'icon' })}
-          onClick={handleDelete}
-          disabled={disabled}
-          aria-label={confirming ? `Pakka delete karein: ${task.title}` : `Delete ${task.title}`}
-          title={confirming ? 'Dobara dabayen — delete' : 'Delete'}
-        >
-          <TrashIcon />
-          {confirming && 'Delete?'}
-        </button>
+        {canDelete && (
+          <button
+            className={confirming ? button({ variant: 'danger', size: 'sm' }) : button({ variant: 'ghost', size: 'icon' })}
+            onClick={handleDelete}
+            disabled={disabled}
+            aria-label={confirming ? `Pakka delete karein: ${task.title}` : `Delete ${task.title}`}
+            title={confirming ? 'Dobara dabayen — delete' : 'Delete'}
+          >
+            <TrashIcon />
+            {confirming && 'Delete?'}
+          </button>
+        )}
       </span>
     </li>
   )

@@ -166,14 +166,15 @@ Organization creation and deletion, role changes, removing members, leaving, acc
 
 | Collection (model) | Main fields | Constraints |
 |---|---|---|
-| `users` (`User`) | `email`, `password` (bcrypt hash), `isVerified`, `name`, `phone`, `avatar`, `failedLoginAttempts`, `lockUntil` | unique `email` (stored trimmed and lowercase). The password and lock fields are never returned. |
+| `users` (`User`) | `email`, `password` (bcrypt hash), `isVerified`, `name`, `phone`, `avatar`, `failedLoginAttempts`, `lockUntil`, `passwordChangedAt` | unique `email` (stored trimmed and lowercase). The password, lock and `passwordChangedAt` fields are never returned. |
 | `organizations` (`Organization`) | `name` (2–100), `createdBy` → User, `ownerCount` | `ownerCount` always equals the number of owner memberships (see Security) |
 | `organizationmembers` (`OrganizationMember`) | `org` → Organization, `user` → User, `role` | **unique `{ org, user }`**, so there are no duplicate memberships. The `role` enum is `owner`, `admin`, `member`, `viewer`. Indexes on `user` and `{ org, role }`. |
 | `invitations` (`Invitation`) | `org`, `email`, `role` (`admin`, `member` or `viewer`), `tokenHash`, `invitedBy`, `status` (`pending`, `accepted` or `replaced`), `expiresAt`, `acceptedAt`, `acceptedBy`, `replacedAt` | unique `tokenHash`; **unique `{ org, email }` only for pending invitations** (a partial index); a TTL index removes expired pending invitations 7 days after they expire |
-| `otps`, `refreshtokens` | email and login codes (bcrypt), refresh token hashes (SHA-256) | TTL cleanup |
-| `tasks`, `tickets`, `files` | owned by one user (`user` or `owner`) | every query filters by the owner |
+| `otps`, `refreshtokens` | email codes (bcrypt) for `verify-email`, `login` and `reset-password`, one document per user and purpose; refresh token hashes (SHA-256) | TTL cleanup |
+| `tasks` (`Task`) | `title` (≤200), `completed`, `user` → User, `org` → Organization (default `null`) | `org: null` is a personal task (only its `user` sees it); with an `org` it belongs to that workspace and `user` is its creator. Personal queries filter `{ user, org: null }`, workspace queries `{ org }`. Indexes `{ user, org, createdAt }` and `{ org, createdAt }`. Old tasks without the field count as personal. |
+| `tickets`, `files` | owned by one user (`user` or `owner`) | every query filters by the owner |
 
-Relationships are ObjectId references (`ref`). MongoDB has no foreign keys, so the services keep them consistent. For example, deleting an organization deletes its memberships and invitations in the same transaction.
+Relationships are ObjectId references (`ref`). MongoDB has no foreign keys, so the services keep them consistent. For example, deleting an organization deletes its memberships, invitations and tasks in the same transaction.
 
 ## RBAC permission matrix
 
@@ -181,7 +182,11 @@ Relationships are ObjectId references (`ref`). MongoDB has no foreign keys, so t
 |---|:-:|:-:|:-:|:-:|
 | View the org, its members and pending invitations | ✅ | ✅ | ✅ | ✅ |
 | Rename the org | ✅ | ✅ | ❌ | ❌ |
-| Delete the org (with all memberships and invitations, in one transaction) | ✅ | ❌ | ❌ | ❌ |
+| Delete the org (with all memberships, invitations and tasks, in one transaction) | ✅ | ❌ | ❌ | ❌ |
+| View the org's tasks | ✅ | ✅ | ✅ | ✅ |
+| Create a task, mark any task done or pending | ✅ | ✅ | ✅ | ❌ |
+| Rename or delete a task they created | ✅ | ✅ | ✅ | ❌ |
+| Rename or delete someone else's task | ✅ | ✅ | ❌ | ❌ |
 | Invite as `member` or `viewer` | ✅ | ✅ | ❌ | ❌ |
 | Invite as `admin` | ✅ | ❌ | ❌ | ❌ |
 | Cancel a pending invitation | ✅ | ✅ | ❌ | ❌ |
@@ -194,7 +199,7 @@ Relationships are ObjectId references (`ref`). MongoDB has no foreign keys, so t
 
 \* Except the last owner. Nobody can be invited as `owner`; a member becomes owner only through a role change by an owner or through ownership transfer.
 
-**Where the checks live:** every organization route uses one reusable middleware, `requireRole(minRole)` (`src/middleware/requireRole.js`). It returns `404` if the caller isn't a member and `403` if their role is lower than `minRole`. Rules that also depend on the *target* member, such as "an admin can't touch an owner", live in one policy module, `src/utils/roles.js` (`canManageMember`, `canAssignRole`), which the services call. Controllers never check roles.
+**Where the checks live:** every organization route uses one reusable middleware, `requireRole(minRole)` (`src/middleware/requireRole.js`). It returns `404` if the caller isn't a member and `403` if their role is lower than `minRole`. Rules that also depend on the *target* member, such as "an admin can't touch an owner", live in one policy module, `src/utils/roles.js` (`canManageMember`, `canAssignRole`, and `canManageTask` for "a member can only rename or delete their own task"), which the services call. Controllers never check roles.
 
 **Last owner:** an organization can have several owners, but the last one can't be demoted, removed or leave (`400` with a message that says why).
 
@@ -214,6 +219,8 @@ Every request needs the `x-api-key` header. 🔒 means it also needs `Authorizat
 | POST | `/auth/refresh` | Rotates the refresh cookie and returns a new access token |
 | POST | `/auth/logout` | Revokes the refresh token |
 | POST | `/auth/login` | `410`: password-only login is disabled, so 2FA can't be skipped |
+| POST | `/auth/forgot-password` | `{ email }`. Emails a 6-digit reset code to a verified account. Always the same `200`, whether or not the account exists. 5 per 15 minutes per IP, 1 per minute per email, 3 codes per hour per user. |
+| POST | `/auth/reset-password` | `{ email, otp, password }`. Sets the new password (same rules as register), clears a lockout and logs out every device. Doesn't log in. Every failure is `400` "Invalid or expired code". |
 
 `/register`, `/verify-email` and `/resend-verification` without the `/auth` prefix are old aliases with the same rate limits.
 
@@ -225,7 +232,7 @@ Every request needs the `x-api-key` header. 🔒 means it also needs `Authorizat
 | GET | `/orgs` | | The caller's orgs, each with their role |
 | GET | `/orgs/:orgId` | viewer | Org details and the caller's role |
 | PATCH | `/orgs/:orgId` | admin | `{ name }` rename |
-| DELETE | `/orgs/:orgId` | owner | Delete the org, its memberships and its invitations (transaction) |
+| DELETE | `/orgs/:orgId` | owner | Delete the org, its memberships, invitations and tasks (transaction); the response counts each in `deleted` |
 | GET | `/orgs/:orgId/members` | viewer | Members, owners first |
 | GET | `/orgs/:orgId/members/:userId` | viewer | One member |
 | PATCH | `/orgs/:orgId/members/:userId/role` | admin | `{ role }` (target rules in the matrix) |
@@ -237,7 +244,7 @@ Every request needs the `x-api-key` header. 🔒 means it also needs `Authorizat
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/orgs/:orgId/invitations` | 🔒 admin | `{ email, role }` send or re-send an invitation |
+| POST | `/orgs/:orgId/invitations` | 🔒 admin | `{ email, role }` send or re-send an invitation. Each user can send 20 per hour (only successful invitations count); the 21st gets `429`. |
 | GET | `/orgs/:orgId/invitations` | 🔒 viewer | Pending invitations (with an `expired` flag) |
 | DELETE | `/orgs/:orgId/invitations/:inviteId` | 🔒 admin | Cancel a pending invitation |
 | GET | `/invitations/:token` | API key only | Check a link and show the org name, role and expiry (for the invite page, before login) |
@@ -246,15 +253,28 @@ Every request needs the `x-api-key` header. 🔒 means it also needs `Authorizat
 | POST | `/invitations/received/:inviteId/accept` | 🔒 | Accept a received invitation without the link (the verified email is the proof; someone else's invite id returns `404`) |
 | POST | `/invitations/received/:inviteId/decline` | 🔒 | Decline a received invitation (it's deleted and its link stops working) |
 
-**Tasks, tickets, profile and files** 🔒 (each user sees only their own)
+**Workspace tasks** 🔒
+
+| Method | Path | Min role | Description |
+|---|---|---|---|
+| GET | `/orgs/:orgId/tasks` | viewer | `{ tasks }`, oldest first; each `user` is the creator (`name`, `email`, or `null` if the account was deleted) |
+| POST | `/orgs/:orgId/tasks` | member | `{ title, completed? }` (same rules as personal tasks); the creator comes from the token |
+| GET | `/orgs/:orgId/tasks/:taskId` | viewer | `{ task }` |
+| PUT | `/orgs/:orgId/tasks/:taskId` | member | `completed` on any task; `title` only on your own task unless you're admin or owner (`403`) |
+| DELETE | `/orgs/:orgId/tasks/:taskId` | member | Your own task; admin and owner can delete any (`403` otherwise) |
+
+A task of another org, a personal task, a malformed ID or a deleted task all return `404` "Task not found", and a non-member gets `404` "Organization not found" before any validation. Personal `/tasks` routes never return or change a workspace task. In the frontend, the **Tasks** page has a "Personal / workspace" dropdown (`/dashboard?org=<orgId>`), and each workspace's sidebar links to it.
+
+**Personal tasks, tickets, profile and files** 🔒 (each user sees only their own)
 
 | Method | Path | Description |
 |---|---|---|
-| GET / POST | `/tasks` | List or create (`{ title }`, at most 200 characters) |
+| GET / POST | `/tasks` | Personal tasks only, oldest first: list or create (`{ title }`, at most 200 characters) |
 | GET / PUT / DELETE | `/tasks/:id` | Read, update (`title` and/or `completed`) or delete |
 | GET / POST | `/tickets` | List, or create (`multipart/form-data`: `title`, `description`, 0–3 `attachments`: JPEG, PNG, WebP or PDF, 2 MB each, 5 MB in total) |
 | GET | `/tickets/:id` | One ticket |
 | GET / PATCH | `/user/profile` | Profile; `{ name, phone }` update |
+| POST | `/user/change-password` | `{ currentPassword, newPassword }`. A wrong current password is `403` (it counts toward the lockout). Logs out other devices and returns a new `token` plus a refresh cookie for this one. |
 | POST | `/user/upload-avatar` | `multipart/form-data` field `avatar` (JPEG, PNG or WebP, 2 MB) |
 | GET | `/files/:fileId` | Download your own file (avatar or attachment) |
 | POST | `/files/:fileId/signed-url` | A 10-minute link that works without a token (for `<img src>`) |
@@ -299,6 +319,8 @@ The response is `{ message, newOwner, previousOwner }`. The password is never re
 - **Authentication:** an API key on every request (compared through SHA-256 with `timingSafeEqual`), then JWT access tokens that are HS256-only and need `exp` and a valid `sub`. The user must still exist. Refresh tokens rotate, and reusing an old one revokes all of the user's sessions.
 - **Passwords:** bcrypt cost 12, at most 72 bytes, strong-password rules for new passwords. They never appear in responses, logs or JWTs.
 - **Login protection:** 2FA email codes (single use, 5 minutes, 5 attempts, stored as bcrypt hashes), account lockout, per-IP rate limits, and the same timing and message for unknown and wrong accounts.
+- **Password reset and change:** the forgot-password response never reveals whether an account exists. A reset or change deletes every refresh token and sets `passwordChangedAt`, and `authMiddleware` rejects access tokens issued before it, so a stolen session stops working at once instead of after 15 minutes. Change-password gives the current device a fresh token and cookie.
+- **Invitation emails:** at most 20 successful invitations per user per hour, so a verified user can't use invitations to spam any address.
 - **Authorization:** `requireRole(...)` on every organization route, and the target-member rules in `utils/roles.js`. Controllers never check roles.
 - **Organization isolation (multi-tenancy):** every organization query filters by `orgId`, and membership is checked before anything else. A non-member gets **`404` "Organization not found"** for the org and everything inside it, whether the org exists or not, even with a valid ID or a malformed one. That way the response never confirms that an org exists. `404` also comes back before validation, so a bad request body doesn't reveal anything either. A member of org A can't use org A's routes to reach org B's members or invitations (`404`).
 - **Concurrency:** writes that can remove an owner run in transactions and first atomically decrement `ownerCount`, but only when it's above 1. Two owners demoting, removing or leaving at the same time write the same document, MongoDB lets only one through, and the org never ends up with no owner. Unique indexes stop duplicate memberships and duplicate pending invitations.
@@ -313,13 +335,15 @@ cd backend
 npm test
 ```
 
-This runs every `test/*.test.js` with Node's built-in test runner (currently **192 tests**). It needs MongoDB **as a replica set**. Each file creates its own `<db>_<name>_test` database and drops it afterwards, so your data isn't touched. Emails are captured instead of sent, and `EXPOSE_DEV_OTP` is forced off.
+This runs every `test/*.test.js` with Node's built-in test runner (currently **221 tests**). It needs MongoDB **as a replica set**. Each file creates its own `<db>_<name>_test` database and drops it afterwards, so your data isn't touched. Emails are captured instead of sent, and `EXPOSE_DEV_OTP` is forced off.
 
 | File | Covers |
 |---|---|
-| `auth`, `loginotp`, `lockout`, `validation`, `ratelimit` | Register, 2FA, lockout, validation shapes, real rate limits |
+| `auth`, `loginotp`, `lockout`, `validation`, `ratelimit` | Register, 2FA, lockout, validation shapes, real rate limits (including the invitation limit) |
+| `password` | Forgot and reset (same response for every account state, single-use codes, weak passwords), change password (wrong current password, lockout), and that old tokens and refresh cookies stop working |
 | `tasks`, `tickets`, `avatar`, `profile` | Per-user resources and uploads |
 | `orgs` | Org CRUD, `requireRole`, isolation, delete rollback |
+| `orgtasks` | Workspace tasks: each role, the creator rule, personal vs workspace separation, cross-org `404`, removed members, org delete |
 | `members` | List, details, roles, remove, leave, last owner, concurrent changes, rollback, `ownerCount` |
 | `invitations` | All invite rules: replace, expiry, wrong email, single use, concurrent accepts, rollback, `devToken` disabled in production |
 | `transfer` | Password check, lockout, transaction rollback, concurrent transfers |
@@ -329,7 +353,7 @@ One file: `node --env-file=.env --test test/members.test.js`; one test: add `--t
 
 ## Postman and Newman
 
-The collection is `postman/Node-Backend-API.postman_collection.json`, with the folders **Auth**, **Tasks**, **Profile**, **Tickets**, **Files** and **Orgs** (the last one has the subfolders **Invitations**, **Members** and **Ownership**). It runs end to end with no manual steps: 108 requests and 328 assertions, covering every route in the tables above.
+The collection is `postman/Node-Backend-API.postman_collection.json`, with the folders **Auth**, **Tasks**, **Profile**, **Tickets**, **Files**, **Orgs** (with the subfolders **Invitations**, **Members**, **Tasks** and **Ownership**) and **Password**. It runs end to end with no manual steps: 140 requests and 418 assertions, covering every route in the tables above.
 
 **Before running:** the backend must be running with `EXPOSE_DEV_OTP=true` in `backend/.env`, so the collection can read email codes and invite tokens from the responses.
 
@@ -341,7 +365,7 @@ npm run test:postman             # local environment
 npm run test:postman -- staging  # staging environment
 ```
 
-This passes `API_KEY` from `.env` (the committed environment files keep it empty) and writes an HTML report to **`postman/reports/report-local.html`** (or `report-staging.html`; the folder is gitignored). For `local` it then runs `npm run postman:cleanup`, which deletes only the run's test users (`pm-a-*` and `pm-b-*@example.test`) together with their orgs, memberships, invitations, tasks, tickets and files. Each run registers 2 users, and the register limit is 10 per hour per IP, so 5 runs fit in an hour; restarting the server resets the in-memory limit.
+This passes `API_KEY` from `.env` (the committed environment files keep it empty) and writes an HTML report to **`postman/reports/report-local.html`** (or `report-staging.html`; the folder is gitignored). For `local` it then runs `npm run postman:cleanup`, which deletes only the run's test users (`pm-a-*` and `pm-b-*@example.test`) together with their orgs, memberships, invitations, tasks, tickets and files. Each run registers 2 users, and the register limit is 10 per hour per IP, so 5 runs fit in an hour; the forgot-password limit (5 per 15 minutes per IP, 1 per minute per email) allows the same. Restarting the server resets the in-memory limits.
 
 **In the Postman app:**
 
@@ -352,6 +376,6 @@ This passes `API_KEY` from `.env` (the committed environment files keep it empty
 
 When the collection changes, re-import only the collection file; re-importing the environment would clear `apiKey`.
 
-**What the other folders check:** **Auth** registers and verifies both users, logs user A in with 2FA, then checks resend (the same generic `200` for a verified account), password-only login (`410`), refresh (the cookie from Newman's cookie jar, a new token, no refresh token in the body), logout, and refresh after logout (`401`). **Tasks** runs create, list, read, mark done, rename and delete, and the failures: empty or 201-character title, `"true"` as a string, an empty update, an invalid ID (`400`), no token (`401`), and user B reading or deleting A's task (`404`). **Profile** reads and updates the name and phone, and checks the per-field `errors` array and that `email` can't be changed (`400`).
+**What the other folders check:** **Auth** registers and verifies both users, logs user A in with 2FA, then checks resend (the same generic `200` for a verified account), password-only login (`410`), refresh (the cookie from Newman's cookie jar, a new token, no refresh token in the body), logout, and refresh after logout (`401`). **Tasks** runs create, list, read, mark done, rename and delete, and the failures: empty or 201-character title, `"true"` as a string, an empty update, an invalid ID (`400`), no token (`401`), and user B reading or deleting A's task (`404`). **Profile** reads and updates the name and phone, and checks the per-field `errors` array and that `email` can't be changed (`400`). **Password** runs last, because changing the password invalidates every earlier token: user A asks for a reset code, a wrong code and a weak password fail (`400`), the reset succeeds, the same code can't be used again, the old access token is rejected (`401`), the old password no longer logs in, the new one does (2FA), then change-password rejects a wrong current password (`403`) and an unchanged one (`400`), succeeds with a new token and cookie, and refresh still works on this device.
 
-**How the Orgs folder works:** user A creates the org. User B is invited using the `devToken` from the response and joins as `admin`, then the owner changes B to `member` and then to `viewer`, and each role's allowed and denied actions are checked. For the second org, B uses the **received** invitations instead of the link: B lists them, declines one (accepting it afterwards gives `404`), gets invited again, and accepts by id, while user A can't accept B's invitation (`404`). Then ownership goes to B and both orgs are deleted. The negative cases are: unverified login, empty name, owner-role invite, invalid email, wrong-email accept, accepting twice, inviting an existing member, a replaced link (`410`), admin inviting an admin, cancelled and invalid tokens, admin removing the owner or deleting the org, member and viewer permission errors, invalid role, the last owner demoting or leaving, cross-org access (`404`), wrong transfer password and a viewer attempting a transfer. Expired invitations can't be simulated in Postman, because it can't move time forward; `npm test` covers them.
+**How the Orgs folder works:** user A creates the org. User B is invited using the `devToken` from the response and joins as `admin`, then the owner changes B to `member` and then to `viewer`, and each role's allowed and denied actions are checked. For the second org, B uses the **received** invitations instead of the link: B lists them, declines one (accepting it afterwards gives `404`), gets invited again, and accepts by id, while user A can't accept B's invitation (`404`). In the **Tasks** subfolder, viewer B can list the org's tasks but can't create one or mark it done (`403`); B is then made a member, creates a task, marks the owner's task done, can't rename or delete it (`403`), and deletes their own; the owner renames B's task; and the org task stays out of the personal `/tasks`, out of the other org's route and away from non-members (`404`). B goes back to viewer. Then ownership goes to B and both orgs are deleted (the response counts the remaining task). The negative cases are: unverified login, empty name, owner-role invite, invalid email, wrong-email accept, accepting twice, inviting an existing member, a replaced link (`410`), admin inviting an admin, cancelled and invalid tokens, admin removing the owner or deleting the org, member and viewer permission errors, invalid role, the last owner demoting or leaving, cross-org access (`404`), wrong transfer password and a viewer attempting a transfer. Expired invitations can't be simulated in Postman, because it can't move time forward; `npm test` covers them.

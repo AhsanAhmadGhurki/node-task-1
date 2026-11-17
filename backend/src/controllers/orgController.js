@@ -44,8 +44,8 @@ async function updateOrg(req, res, next) {
 // DELETE /orgs/:orgId — org + memberships + invitations (transaction)
 async function deleteOrg(req, res, next) {
   try {
-    const { org, members, invitations } = await orgService.deleteOrg(req.membership.orgId);
-    res.status(200).json({ message: "Organization deleted", org, deleted: { members, invitations } });
+    const { org, members, invitations, tasks } = await orgService.deleteOrg(req.membership.orgId);
+    res.status(200).json({ message: "Organization deleted", org, deleted: { members, invitations, tasks } });
   } catch (err) {
     next(err);
   }

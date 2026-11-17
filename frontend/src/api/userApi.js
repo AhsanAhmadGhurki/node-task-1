@@ -14,6 +14,12 @@ export async function updateProfile(changes) {
 }
 
 // POST /user/upload-avatar — multipart, field "avatar"; { message, avatar } lautata hai
+// password badlo — jawab { message, token, user } (naya token; baqi devices logout, refresh cookie bhi nayi)
+export async function changePassword(currentPassword, newPassword) {
+  const { data } = await api.post('/user/change-password', { currentPassword, newPassword })
+  return data
+}
+
 export async function uploadAvatar(file) {
   const form = new FormData()
   form.append('avatar', file)

@@ -26,4 +26,13 @@ function canAssignRole(actorRole, role) {
   return false;
 }
 
-module.exports = { ROLES, ROLE_RANK, INVITABLE_ROLES, canManageMember, canAssignRole };
+// --- org ke tasks ---
+// done/pending karna har member (member+) ka kaam hai — woh requireRole("member") route par hi kar deta hai.
+// naam badalna aur mitana: owner/admin har task ka; member sirf apna banaya hua; viewer kuch nahi
+function canManageTask(actorRole, isCreator) {
+  if (actorRole === "owner" || actorRole === "admin") return true;
+  if (actorRole === "member") return isCreator;
+  return false;
+}
+
+module.exports = { ROLES, ROLE_RANK, INVITABLE_ROLES, canManageMember, canAssignRole, canManageTask };

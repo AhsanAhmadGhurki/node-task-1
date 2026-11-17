@@ -129,6 +129,41 @@ async function resendVerification(req, res, next) {
   }
 }
 
+// POST /auth/forgot-password — body: { "email": "..." }; jawab hamesha ek hi (devOtp sirf EXPOSE_DEV_OTP par)
+async function forgotPassword(req, res, next) {
+  try {
+    const result = await authService.forgotPassword(req.body.email);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /auth/reset-password — body: { "email": "...", "otp": "123456", "password": "..." }
+// login nahi karwata (token/cookie nahi) — naya password 2FA login se
+async function resetPassword(req, res, next) {
+  try {
+    const { email, otp, password } = req.body;
+    const { message } = await authService.resetPassword({ email, otp, password });
+    res.status(200).json({ message });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /user/change-password — body: { "currentPassword": "...", "newPassword": "..." }
+// baqi devices logout; is device ko naya token + nayi refresh cookie (purani mit chuki)
+async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const { message, token, refreshToken, user } = await authService.changePassword(req.user.id, { currentPassword, newPassword });
+    setRefreshCookie(res, refreshToken);
+    res.status(200).json({ message, token, user });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   register,
   loginDisabled,
@@ -137,5 +172,8 @@ module.exports = {
   refresh,
   logout,
   verifyEmail,
-  resendVerification
+  resendVerification,
+  forgotPassword,
+  resetPassword,
+  changePassword
 };

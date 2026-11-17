@@ -9,11 +9,11 @@ const otpSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
-    // "verify-email" (register ke baad) ya "login" (2FA) — har purpose ka document aur ghante ki ginti alag
-    // (login ke codes verify ki 3/ghanta had na khayein, aur ulta bhi)
+    // "verify-email" (register ke baad), "login" (2FA) ya "reset-password" (password bhool gaye) —
+    // har purpose ka document aur ghante ki ginti alag (ek ke codes doosre ki had na khayein)
     purpose: {
       type: String,
-      enum: ["verify-email", "login"],
+      enum: ["verify-email", "login", "reset-password"],
       required: true
     },
     // bcrypt hash — asal code sirf email mein, DB leak ho to bhi code nahi milta

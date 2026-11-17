@@ -39,6 +39,18 @@ export async function verifyEmail(email, otp, password) {
 }
 
 // POST /auth/resend-verification — naya code (purana band); { message } hamesha ek hi (account ho ya na ho)
+// password bhool gaye — jawab hamesha ek jaisa (account ho ya na ho)
+export async function forgotPassword(email) {
+  const { data } = await api.post('/auth/forgot-password', { email })
+  return data
+}
+
+// code + naya password — login nahi karwata, phir login page
+export async function resetPassword(email, otp, password) {
+  const { data } = await api.post('/auth/reset-password', { email, otp, password })
+  return data
+}
+
 export async function resendVerification(email) {
   const { data } = await api.post('/auth/resend-verification', { email })
   return data

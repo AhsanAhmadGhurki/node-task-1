@@ -1,10 +1,10 @@
 // workspace page ki baayen patti — meri orgs (har ek par mera asli role), nayi org, aur chuni hui org ke sections
 // org badalte hi URL (/workspace/:orgId/...) aur role badal jaate hain
 import { useState } from 'react'
-import { NavLink } from 'react-router'
+import { Link, NavLink } from 'react-router'
 import { useAction } from '../hooks/useAction'
 import { useWorkspace } from '../hooks/useWorkspace'
-import { MailIcon, PlusIcon, SettingsIcon, UsersIcon } from '../ui/icons'
+import { ListChecksIcon, MailIcon, PlusIcon, SettingsIcon, UsersIcon } from '../ui/icons'
 import { badge, button, cn, focusRing, input, panel } from '../ui/styles'
 
 const SECTIONS = [
@@ -81,6 +81,11 @@ export default function WorkspaceSidebar({ orgId, section, onResult, onCreated }
         <nav aria-label="Workspace sections">
           <p className={heading}>{activeOrg.name}</p>
           <div className="flex flex-col gap-0.5">
+            {/* org ke tasks Dashboard par hi (wahi list, wahi form) — ?org= se us workspace ki list */}
+            <Link to={`/dashboard?org=${activeOrg._id}`} className={rowState({ isActive: false })}>
+              <ListChecksIcon />
+              Tasks
+            </Link>
             {SECTIONS.map(([to, text, Icon]) => (
               <NavLink key={to} to={`/workspace/${activeOrg._id}/${to}`} className={rowState}>
                 <Icon />

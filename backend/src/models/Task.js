@@ -22,12 +22,25 @@ const taskSchema = new mongoose.Schema(
       // ref se Mongoose ko pata hai ke ye id "users" collection ke document ki hai (populate isi se chalta hai)
       ref: "User",
       // bina owner ke koi task nahi ban sakta
+      // org ke task mein yeh "banane wala" hai — malik org hai, user nahi (member nikle to bhi task org mein rehta hai)
       required: true
+    },
+    // null = personal task (sirf user ka); id = workspace (org) ka task, us org ke members dekhte hain
+    // purane tasks mein field hai hi nahi — { org: null } un ko bhi pakadta hai, migration ki zaroorat nahi
+    org: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null
     }
   },
   // createdAt aur updatedAt khud ban jaate hain
   { timestamps: true }
 );
+
+// personal list — { user, org: null }; pehle user par koi index tha hi nahi (har GET /tasks poori collection padhta)
+taskSchema.index({ user: 1, org: 1, createdAt: 1 });
+// org ki list (purane pehle) aur org delete par us ke saare tasks
+taskSchema.index({ org: 1, createdAt: 1 });
 
 // "Task" model — collection ka naam "tasks" hoga
 module.exports = mongoose.model("Task", taskSchema);

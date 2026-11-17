@@ -114,6 +114,11 @@ components:
           type: string
           description: Owner ka _id — hamesha token se, body se kabhi nahi
           example: 6af2f02fa249d02b97a568ba
+        org:
+          type: string
+          nullable: true
+          description: Personal task mein hamesha null (workspace ke tasks /orgs/{orgId}/tasks par)
+          example: null
         createdAt:
           type: string
           format: date-time
@@ -122,6 +127,50 @@ components:
           type: string
           format: date-time
           example: 2026-11-10T10:21:37.119Z
+        __v:
+          type: integer
+          example: 0
+
+    # workspace ka task — user = banane wala (sirf name/email), org = kis org ka
+    OrgTask:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6af6c3e1e9e08289510f9e90
+        title:
+          type: string
+          maxLength: 200
+          example: Prepare the release notes
+        completed:
+          type: boolean
+          example: false
+        user:
+          type: object
+          nullable: true
+          description: Banane wala — token se. Account mit chuka ho to null
+          properties:
+            _id:
+              type: string
+              example: 6af2f02fa249d02b97a568ba
+            name:
+              type: string
+              nullable: true
+              example: Ali Khan
+            email:
+              type: string
+              example: ali@example.test
+        org:
+          type: string
+          example: 6af5a1c2e9e08289510f9e01
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-17T09:12:44.501Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2026-11-17T09:12:44.501Z
         __v:
           type: integer
           example: 0
@@ -383,6 +432,15 @@ components:
       schema:
         type: string
         example: 6af2f02fa249d02b97a568ba
+    # org ke task ki id — ghalat shakal par bhi 404 (400 nahi), baaki org routes jaisa
+    OrgTaskId:
+      name: taskId
+      in: path
+      required: true
+      description: Org ke task ka _id (24 hex)
+      schema:
+        type: string
+        example: 6af6c3e1e9e08289510f9e90
     InviteId:
       name: inviteId
       in: path
@@ -538,6 +596,23 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             message: This member was changed by another request. Please try again.
+
+    # org nahi (ya aap member nahi) — ya task is org ka nahi (doosri org ka, ghalat id, mit chuka); dono 404
+    OrgOrTaskNotFound:
+      description: Org nahi mili / aap member nahi — ya task is org mein nahi
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            org:
+              summary: Org nahi ya aap member nahi
+              value:
+                message: Organization not found
+            task:
+              summary: Task is org mein nahi
+              value:
+                message: Task not found
 
     OrgOrInvitationNotFound:
       description: Org nahi / aap member nahi — ya invite is org ka pending invite nahi

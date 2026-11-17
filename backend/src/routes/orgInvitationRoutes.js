@@ -3,6 +3,7 @@ const invitationController = require("../controllers/invitationController");
 const requireRole = require("../middleware/requireRole");
 const { sendInvitationRules } = require("../validators/orgValidators");
 const { handleValidation } = require("../middleware/validate");
+const { inviteLimiter } = require("../middleware/rateLimit");
 
 // orgRoutes mein "/:orgId/invitations" par — mergeParams se req.params.orgId (requireRole ko chahiye)
 // har route par pehle requireRole — non-member ko har cheez 404 (ghalat body par bhi, 400 nahi)
@@ -114,11 +115,25 @@ const router = express.Router({ mergeParams: true });
  *               $ref: "#/components/schemas/ErrorResponse"
  *             example:
  *               message: This email already belongs to a member of this organization
+ *       429:
+ *         description: Ek user ghante mein 20 kamyab invites (sirf jin par email gayi — 400/403/409 nahi gine jaate)
+ *         headers:
+ *           Retry-After:
+ *             $ref: "#/components/headers/RetryAfter"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/RateLimitError"
+ *             example:
+ *               message: You can send at most 20 invitations per hour. Please try again in 42 minutes.
+ *               retryAfter: 2512
+ *               resetAt: 2026-11-17T11:02:31.000Z
  *       500:
  *         $ref: "#/components/responses/ServerError"
  */
 router.get("/", requireRole("viewer"), invitationController.listInvitations);
-router.post("/", requireRole("admin"), sendInvitationRules, handleValidation, invitationController.sendInvitation);
+// inviteLimiter validation ke BAAD — ghalat body par 400 pehle (aur non-member ko 404), had sirf asal bhejne par
+router.post("/", requireRole("admin"), sendInvitationRules, handleValidation, inviteLimiter, invitationController.sendInvitation);
 
 /**
  * @openapi

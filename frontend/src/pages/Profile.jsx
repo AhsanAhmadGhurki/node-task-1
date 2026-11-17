@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { getProfile, updateProfile } from '../api/userApi'
 import AvatarUpload from '../components/AvatarUpload'
+import ChangePassword from '../components/ChangePassword'
 import Loader from '../components/Loader'
 import Toast from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
@@ -101,7 +102,7 @@ export default function Profile() {
       <div className={pageHeader}>
         <div className="min-w-0">
           <h1 className={pageTitle}>Profile</h1>
-          <p className={subtitle}>Apna naam, phone aur tasveer — email badli nahi ja sakti.</p>
+          <p className={subtitle}>Apna naam, phone, tasveer aur password — email badli nahi ja sakti.</p>
         </div>
       </div>
 
@@ -187,6 +188,11 @@ export default function Profile() {
             </div>
           )}
         </form>
+      </section>
+
+      {/* alag dabba — apna form aur apna button (profile ka Save password nahi bhejta, aur ulta bhi) */}
+      <section className={cn(panel, 'mt-6')}>
+        <ChangePassword onResult={setAlert} />
       </section>
 
       <Toast alert={alert} onClose={() => setAlert(null)} />

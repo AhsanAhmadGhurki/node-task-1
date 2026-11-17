@@ -55,6 +55,12 @@ const userSchema = new mongoose.Schema(
     lockUntil: {
       type: Date,
       default: null
+    },
+    // password aakhri dafa kab badla (reset ya change) — is se PEHLE bane access tokens authMiddleware rad karta hai
+    // (warna chura hua token password badalne ke baad bhi 15 minute chalta). second tak (JWT ka iat second mein hai)
+    passwordChangedAt: {
+      type: Date,
+      default: null
     }
   },
   {
@@ -68,6 +74,7 @@ const userSchema = new mongoose.Schema(
         // lockout ki andar ki halat — client ko nahi chahiye (login ka jawab hi batata hai)
         delete ret.failedLoginAttempts;
         delete ret.lockUntil;
+        delete ret.passwordChangedAt;
         delete ret.verificationTokenHash;
         delete ret.verificationTokenExpires;
         delete ret.verificationEmailSentAt;

@@ -36,6 +36,15 @@ const OTP_EMAILS = {
     footer: (minutes) =>
       `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}. If this wasn't you, change your password.`,
     logLabel: "Login code"
+  },
+  // password bhool gaye — code ke saath naya password lagta hai; maangne wala koi aur ho to code ke baghair kuch nahi kar sakta
+  "reset-password": {
+    subject: "Reset your password",
+    heading: "Reset your password",
+    intro: "Someone (hopefully you) asked to reset your password. Enter this code to choose a new one.",
+    footer: (minutes) =>
+      `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}. If you didn't ask for this, you can ignore this email — your password stays the same.`,
+    logLabel: "Password reset code"
   }
 };
 

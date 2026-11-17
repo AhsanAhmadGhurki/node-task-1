@@ -4,7 +4,8 @@ import { useId, useState } from 'react'
 import { EyeIcon, EyeOffIcon } from '../ui/icons'
 import { cn, field, focusRing, hint as hintClass, inputBase, label } from '../ui/styles'
 
-export default function PasswordInput({ value, onChange, autoComplete, hint, children }) {
+// labelText/name — ek form mein do password fields hon (Profile: maujooda + naya) to har ek ka apna naam
+export default function PasswordInput({ value, onChange, autoComplete, hint, children, labelText = 'Password', name = 'password' }) {
   const [visible, setVisible] = useState(false)
   // har instance ka apna id — label/hint input se jud saken
   const id = useId()
@@ -13,7 +14,7 @@ export default function PasswordInput({ value, onChange, autoComplete, hint, chi
   return (
     <div className={field}>
       <label htmlFor={id} className={label}>
-        Password
+        {labelText}
       </label>
       {/* button input ke andar daayen — input mein uske liye jagah (pr-10) */}
       <span className="relative">
@@ -21,7 +22,7 @@ export default function PasswordInput({ value, onChange, autoComplete, hint, chi
           id={id}
           className={cn(inputBase, 'h-9 pr-10 pl-3 text-sm')}
           type={visible ? 'text' : 'password'}
-          name="password"
+          name={name}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           autoComplete={autoComplete}

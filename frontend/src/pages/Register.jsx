@@ -5,12 +5,13 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { register } from '../api/authApi'
 import Alert from '../components/Alert'
 import AuthLayout from '../components/AuthLayout'
+import PasswordChecklist from '../components/PasswordChecklist'
 import PasswordInput from '../components/PasswordInput'
 import VerifyEmail from '../components/VerifyEmail'
 import { useAuth } from '../hooks/useAuth'
-import { ArrowLeftIcon, CheckIcon } from '../ui/icons'
+import { ArrowLeftIcon } from '../ui/icons'
 import { button, cn, field, form, input, label, link } from '../ui/styles'
-import { passwordChecks, passwordRuleError, safeNext, toAlert } from '../utils/helpers'
+import { passwordRuleError, safeNext, toAlert } from '../utils/helpers'
 
 export default function Register() {
   const { token, login } = useAuth()
@@ -131,22 +132,7 @@ export default function Register() {
         </div>
         {/* backend ke rules — likhte waqt hi har rule ka check, taake 400 kam aaye */}
         <PasswordInput value={password} onChange={setPassword} autoComplete="new-password">
-          {/* ek column — har rule apni line par, aankh upar se neeche padhti hai */}
-          <ul className="mt-1 flex flex-col gap-1">
-            {passwordChecks(password).map(([rule, ok]) => (
-              <li key={rule} className={cn('flex items-center gap-1.5', ok ? 'text-success-text' : 'text-muted')}>
-                <span
-                  className={cn(
-                    'flex size-3.5 shrink-0 items-center justify-center rounded-full',
-                    ok ? 'bg-success-text text-card' : 'border border-input',
-                  )}
-                >
-                  {ok && <CheckIcon className="size-2.5" strokeWidth={4} />}
-                </span>
-                {rule}
-              </li>
-            ))}
-          </ul>
+          <PasswordChecklist password={password} />
         </PasswordInput>
         <button type="submit" className={cn(button(), 'mt-2 w-full')} disabled={loading}>
           {loading ? 'Please wait…' : 'Account banayein'}

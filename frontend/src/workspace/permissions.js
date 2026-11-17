@@ -5,9 +5,9 @@ export const ROLES = ['owner', 'admin', 'member', 'viewer']
 
 // har role ek line mein — page par "aap kya kar sakte hain"
 export const ROLE_INFO = {
-  owner: 'Sab kuch — members, roles, invites, naam, org delete aur ownership transfer.',
-  admin: 'Members invite/remove karta hai (member/viewer), org ka naam badal sakta hai.',
-  member: 'Org aur members dekh sakta hai.',
+  owner: 'Sab kuch — members, roles, invites, naam, har task, org delete aur ownership transfer.',
+  admin: 'Members invite/remove karta hai (member/viewer), org ka naam aur har task badal sakta hai.',
+  member: 'Tasks banata hai, kisi ka bhi task done karta hai; naam badalna/mitana sirf apne task ka.',
   viewer: 'Sirf dekh sakta hai.',
 }
 
@@ -17,6 +17,17 @@ const MATRIX = {
   'org:delete': ['owner'],
   'org:transfer': ['owner'],
   'member:invite': ['owner', 'admin'],
+  // task banana aur done/pending — member se upar sab (viewer nahi)
+  'task:create': ['owner', 'admin', 'member'],
+  'task:toggle': ['owner', 'admin', 'member'],
+}
+
+// org ka task — naam badalna/mitana: owner/admin har task; member sirf apna banaya; viewer kuch nahi
+// (backend utils/roles.js canManageTask jaisa)
+export function canManageTask(role, isCreator) {
+  if (role === 'owner' || role === 'admin') return true
+  if (role === 'member') return isCreator
+  return false
 }
 
 export function can(role, action) {

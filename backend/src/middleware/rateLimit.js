@@ -55,6 +55,25 @@ const resendEmailCooldown = rateLimit({
   }
 });
 
+// forgot-password — resend jaisa: har request asal email bhej sakti hai
+// IP par 15 minute mein 5, aur ek email par 60 second mein 1 (account ho ya na ho — 429 kuch nahi batata)
+// resend wale limiters ke alag instance — alag ginti (reset ka code maangna verify ka code na roke)
+const forgotPasswordLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  message: "Too many password reset requests. Please try again in 15 minutes."
+});
+const forgotPasswordCooldown = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 1,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => `forgot:${req.body.email.trim().toLowerCase()}`,
+  handler: (req, res) => {
+    sendLimited(req, res, "Please wait a minute before requesting another code.", 60 * 1000);
+  }
+});
+
 // register bhi email bhejta hai — naye naye emails se spam na ho
 const registerLimiter = createLimiter({
   windowMs: 60 * 60 * 1000,
@@ -86,7 +105,33 @@ const otpVerifyLimiter = createLimiter({
   skipSuccessfulRequests: true
 });
 
+// org invites — har kamyab invite kisi ke inbox mein email bhejta hai; bina had ke koi bhi verified user
+// apni org bana kar kisi ko bhi be-hisaab emails bhej sakta tha (spam, aur hamara SMTP account block)
+// IP nahi, USER par (requireRole ke baad req.user hota hai) — ek user ghante mein 20; sirf kamyab (2xx) gine jaate hain,
+// is liye ghalat email, 403 ya "pehle se member" (409) had nahi khaate
+const INVITES_PER_HOUR = 20;
+const inviteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: INVITES_PER_HOUR,
+  skipFailedRequests: true,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => `invite:${req.user.id}`,
+  handler: (req, res) => {
+    const minutes = minutesUntilReset(req);
+    sendLimited(
+      req,
+      res,
+      `You can send at most ${INVITES_PER_HOUR} invitations per hour. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+      60 * 60 * 1000
+    );
+  }
+});
+
 module.exports = {
+  inviteLimiter,
+  forgotPasswordLimiter,
+  forgotPasswordCooldown,
   resendLimiter,
   resendEmailCooldown,
   registerLimiter,

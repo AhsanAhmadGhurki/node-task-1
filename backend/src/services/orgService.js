@@ -4,6 +4,7 @@ const Organization = require("../models/Organization");
 const OrganizationMember = require("../models/OrganizationMember");
 const Invitation = require("../models/Invitation");
 const User = require("../models/User");
+const Task = require("../models/Task");
 const ForbiddenError = require("../utils/ForbiddenError");
 const NotFoundError = require("../utils/NotFoundError");
 
@@ -70,10 +71,10 @@ async function renameOrg(orgId, name) {
   return org;
 }
 
-// DELETE /orgs/:orgId — org, us ki saari memberships aur invitations ek transaction mein (sirf owner, requireRole)
+// DELETE /orgs/:orgId — org, us ki saari memberships, invitations aur tasks ek transaction mein (sirf owner, requireRole)
 // beech mein koi bhi qadam fail ho to sab wapas — aadhi mitti org (members bina org ke) kabhi nahi bachti
 // har query { org: orgId } se — doosri org ka koi document is ki zad mein nahi aata
-// (tasks/tickets org mein aayenge to unhein bhi isi transaction mein jodna hai)
+// (tickets org mein aayein to unhein aur un ki files bhi isi mein jodna hai)
 async function deleteOrg(orgId) {
   let deleted;
   await mongoose.connection.transaction(async (session) => {
@@ -84,7 +85,9 @@ async function deleteOrg(orgId) {
     }
     const members = await OrganizationMember.deleteMany({ org: orgId }, { session });
     const invitations = await Invitation.deleteMany({ org: orgId }, { session });
-    deleted = { org, members: members.deletedCount, invitations: invitations.deletedCount };
+    // org ke tasks bhi — org ke baghair koi unhein dekh hi nahi sakta (personal tasks ka org null hai, woh nahi chhoote)
+    const tasks = await Task.deleteMany({ org: orgId }, { session });
+    deleted = { org, members: members.deletedCount, invitations: invitations.deletedCount, tasks: tasks.deletedCount };
   });
   return deleted;
 }

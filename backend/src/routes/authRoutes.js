@@ -1,9 +1,17 @@
 const express = require("express");
 const authController = require("../controllers/authController");
 const { validateEmail } = require("../middleware/validation");
-const { registerRules, verifyEmailRules, loginRules, verifyLoginOtpRules } = require("../validators/authValidators");
+const { registerRules, verifyEmailRules, loginRules, verifyLoginOtpRules, resetPasswordRules } = require("../validators/authValidators");
 const { handleValidation } = require("../middleware/validate");
-const { registerLimiter, loginLimiter, resendLimiter, resendEmailCooldown, otpVerifyLimiter } = require("../middleware/rateLimit");
+const {
+  registerLimiter,
+  loginLimiter,
+  resendLimiter,
+  resendEmailCooldown,
+  otpVerifyLimiter,
+  forgotPasswordLimiter,
+  forgotPasswordCooldown
+} = require("../middleware/rateLimit");
 
 // app.js mein root ("/") par lagaya gaya hai — isliye yahan poore paths likhe hain
 // saare auth routes /auth/* par; register, verify, resend ke purane root paths alias hain (purane clients na tootein)
@@ -313,6 +321,162 @@ router.post(
   resendEmailCooldown,
   authController.resendVerification
 );
+
+/**
+ * @openapi
+ * /auth/forgot-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Password bhool gaye — email par reset ka code
+ *     description: |
+ *       Sirf **verified** account ko code jaata hai (5 minute, 5 koshishen, ek dafa). 200 ka jawab **hamesha ek** —
+ *       account na ho, unverified ho, code gaya ho, ya ghante ki had (3) poori ho. Is se koi pata nahi kar sakta ke email registered hai.
+ *       400 mein `errors` array nahi (purana validator), sirf `message`.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: user@example.test
+ *     responses:
+ *       200:
+ *         description: Hamesha yahi (devOtp sirf EXPOSE_DEV_OTP=true, non-production, aur sirf jab code bana)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 devOtp:
+ *                   type: string
+ *                   description: Sirf EXPOSE_DEV_OTP=true (non-production) — Postman/Newman ke liye
+ *             example:
+ *               message: If an account exists for this email, a password reset code has been sent.
+ *       400:
+ *         description: Email na ho, ghalat shakal, ya kharab JSON
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/ErrorResponse"
+ *             example:
+ *               message: Please enter a valid email address
+ *       401:
+ *         $ref: "#/components/responses/ApiKeyUnauthorized"
+ *       413:
+ *         $ref: "#/components/responses/JsonTooLarge"
+ *       429:
+ *         description: Ek IP se 15 minute mein 5, ya ek email par 60 second mein 1 (account ho ya na ho)
+ *         headers:
+ *           Retry-After:
+ *             $ref: "#/components/headers/RetryAfter"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/RateLimitError"
+ *             examples:
+ *               emailCooldown:
+ *                 summary: Ek email par 60 second mein dobara
+ *                 value:
+ *                   message: Please wait a minute before requesting another code.
+ *                   retryAfter: 58
+ *                   resetAt: 2026-11-17T10:22:35.000Z
+ *               ipLimit:
+ *                 summary: Ek IP se 15 minute mein 5
+ *                 value:
+ *                   message: Too many password reset requests. Please try again in 15 minutes.
+ *                   retryAfter: 812
+ *                   resetAt: 2026-11-17T10:35:13.000Z
+ *       500:
+ *         $ref: "#/components/responses/ServerError"
+ */
+// resend jaisa — IP limit (5/15 min), phir email ki shakal, phir ek email par 60s; user ki 3/ghanta ginti DB mein
+router.post("/auth/forgot-password", forgotPasswordLimiter, validateEmail, forgotPasswordCooldown, authController.forgotPassword);
+
+/**
+ * @openapi
+ * /auth/reset-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Reset code + naya password
+ *     description: |
+ *       Naya password register wale qaidon par. Kamyabi par **saare devices logout** (refresh tokens mit jaate hain,
+ *       pehle bane access tokens bhi rad) aur account ka lock saaf. Login **nahi** karwata — naya password 2FA login se.
+ *       Har galti (email nahi, unverified, ghalat/expire/istemal shuda code) ka ek hi jawab: 400 "Invalid or expired code".
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: user@example.test
+ *               otp:
+ *                 type: string
+ *                 pattern: "^\\d{6}$"
+ *                 example: "482913"
+ *               password:
+ *                 type: string
+ *                 description: Naya password — 8+, uppercase, number, special character, 72 bytes tak
+ *                 example: NewValid1234!
+ *     responses:
+ *       200:
+ *         description: Password badal gaya
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/ErrorResponse"
+ *             example:
+ *               message: Your password has been changed. Please log in with your new password.
+ *       400:
+ *         description: Ghalat/expire code (ek hi message), ya validation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/ValidationError"
+ *             examples:
+ *               invalidCode:
+ *                 summary: Code ghalat, expire, istemal shuda, ya account nahi
+ *                 value:
+ *                   message: Invalid or expired code
+ *               weakPassword:
+ *                 summary: Naya password kamzor
+ *                 value:
+ *                   message: Password must contain at least one special character (e.g. !@#$%)
+ *                   errors:
+ *                     - field: password
+ *                       message: Password must contain at least one special character (e.g. !@#$%)
+ *       401:
+ *         $ref: "#/components/responses/ApiKeyUnauthorized"
+ *       413:
+ *         $ref: "#/components/responses/JsonTooLarge"
+ *       429:
+ *         description: Ek IP se 15 minute mein 10 ghalat codes (verify-email aur login ke codes mila kar)
+ *         headers:
+ *           Retry-After:
+ *             $ref: "#/components/headers/RetryAfter"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/RateLimitError"
+ *             example:
+ *               message: Too many failed code attempts. Please try again in 15 minutes.
+ *               retryAfter: 871
+ *               resetAt: 2026-11-17T10:36:12.000Z
+ *       500:
+ *         $ref: "#/components/responses/ServerError"
+ */
+// code guess karna — har code par 5 koshishen DB mein, aur IP par wahi otpVerifyLimiter (saare codes mila kar)
+router.post("/auth/reset-password", otpVerifyLimiter, resetPasswordRules, handleValidation, authController.resetPassword);
 
 /**
  * @openapi

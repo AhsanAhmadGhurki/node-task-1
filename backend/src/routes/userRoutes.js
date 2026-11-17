@@ -1,7 +1,9 @@
 const express = require("express");
 const upload = require("../config/upload");
 const userController = require("../controllers/userController");
+const authController = require("../controllers/authController");
 const { updateProfileRules } = require("../validators/userValidators");
+const { changePasswordRules } = require("../validators/authValidators");
 const { handleValidation } = require("../middleware/validate");
 
 // app.js mein "/user" par authMiddleware ke BAAD lagaya gaya hai — yahan har route logged-in user ka
@@ -215,5 +217,101 @@ router.get("/profile", userController.getProfile);
 
 // PATCH /user/profile — JSON body: name aur/ya phone (partial update)
 router.patch("/profile", updateProfileRules, handleValidation, userController.updateProfile);
+
+/**
+ * @openapi
+ * /user/change-password:
+ *   post:
+ *     tags: [User]
+ *     summary: Password badalna (logged-in) — baqi devices logout
+ *     description: |
+ *       Maujooda password dobara (login wali lockout ginti: 5 ghalat par 423). Naya password register wale qaidon par,
+ *       aur maujooda se alag. Kamyabi par saare refresh tokens mit jaate hain aur pehle bane access tokens rad —
+ *       **yeh device** naya `token` aur nayi refresh cookie paata hai, baqi devices logout.
+ *     security:
+ *       - ApiKeyAuth: []
+ *         BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 example: Valid1234!
+ *               newPassword:
+ *                 type: string
+ *                 description: 8+, uppercase, number, special character, 72 bytes tak
+ *                 example: NewValid1234!
+ *     responses:
+ *       200:
+ *         description: Password badal gaya — naya token (body) aur refresh cookie
+ *         headers:
+ *           Set-Cookie:
+ *             $ref: "#/components/headers/SetRefreshCookie"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/Session"
+ *             example:
+ *               message: Your password has been changed. Other devices have been logged out.
+ *               token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWYyZjAyZmEyNDlkMDJiOTdhNTY4YmEifQ.signature
+ *               user:
+ *                 _id: 6af2f02fa249d02b97a568ba
+ *                 email: user@example.test
+ *                 isVerified: true
+ *                 avatar: null
+ *                 name: Ali Khan
+ *       400:
+ *         description: Validation, ya naya password purane jaisa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/ValidationError"
+ *             examples:
+ *               weak:
+ *                 summary: Naya password kamzor
+ *                 value:
+ *                   message: New password must be at least 8 characters
+ *                   errors:
+ *                     - field: newPassword
+ *                       message: New password must be at least 8 characters
+ *               same:
+ *                 summary: Naya wahi purana
+ *                 value:
+ *                   message: New password must be different from your current password
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
+ *       403:
+ *         description: Maujooda password ghalat (401 nahi — token theek hai)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/ErrorResponse"
+ *             example:
+ *               message: Incorrect password
+ *       413:
+ *         $ref: "#/components/responses/JsonTooLarge"
+ *       423:
+ *         description: Bahut galat passwords — account 15 minute band (login jaisa)
+ *         headers:
+ *           Retry-After:
+ *             $ref: "#/components/headers/RetryAfter"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: "#/components/schemas/RateLimitError"
+ *             example:
+ *               message: Account locked due to too many failed login attempts. Try again in 15 minutes.
+ *               retryAfter: 900
+ *               resetAt: 2026-11-17T10:40:00.000Z
+ *       500:
+ *         $ref: "#/components/responses/ServerError"
+ */
+// controller authController mein — refresh cookie wahi lagata hai (cookie ka Path /auth hai, kisi bhi route se lag sakti hai)
+router.post("/change-password", changePasswordRules, handleValidation, authController.changePassword);
 
 module.exports = router;

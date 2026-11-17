@@ -1,23 +1,25 @@
-// task CRUD — token axios instance khud lagata hai, yahan sirf routes
+// tasks ki API calls — orgId na ho to personal (/tasks), ho to us workspace ke (/orgs/:orgId/tasks)
+// personal routes task seedha lautate hain, org routes { tasks } / { task } mein — dono yahan ek shakal mein
 import api from './axios'
 
-export async function getTasks() {
-  const { data } = await api.get('/tasks')
-  return data
+const base = (orgId) => (orgId ? `/orgs/${orgId}/tasks` : '/tasks')
+
+export async function getTasks(orgId) {
+  const { data } = await api.get(base(orgId))
+  return orgId ? data.tasks : data
 }
 
-export async function createTask(title) {
-  const { data } = await api.post('/tasks', { title })
-  return data
+export async function createTask(title, orgId) {
+  const { data } = await api.post(base(orgId), { title })
+  return orgId ? data.task : data
 }
 
-// sirf bheji hui fields badalti hain (backend partial update karta hai) — jaise { completed: true }
-export async function updateTask(id, changes) {
-  const { data } = await api.put(`/tasks/${id}`, changes)
-  return data
+export async function updateTask(id, changes, orgId) {
+  const { data } = await api.put(`${base(orgId)}/${id}`, changes)
+  return orgId ? data.task : data
 }
 
-export async function deleteTask(id) {
-  const { data } = await api.delete(`/tasks/${id}`)
+export async function deleteTask(id, orgId) {
+  const { data } = await api.delete(`${base(orgId)}/${id}`)
   return data
 }

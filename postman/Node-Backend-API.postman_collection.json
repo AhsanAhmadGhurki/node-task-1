@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Node Backend API Testing",
-    "description": "Auth, Tasks, Profile, Tickets, Files aur Orgs (invitations, members, ownership) ke end-to-end tests. Environment (local/staging) select karke Collection Runner ya Newman se chalayein. Backend mein EXPOSE_DEV_OTP=true (sirf non-production) hona chahiye, taake OTP code response (devOtp) se mile.",
+    "description": "Auth, Tasks, Profile, Tickets, Files, Orgs (invitations, members, workspace tasks, ownership) aur Password (forgot/reset, change) ke end-to-end tests. Environment (local/staging) select karke Collection Runner ya Newman se chalayein. Backend mein EXPOSE_DEV_OTP=true (sirf non-production) hona chahiye, taake OTP code response (devOtp) se mile.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -102,6 +102,31 @@
     {
       "key": "receivedInviteId",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orgTaskId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberTaskId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resetOtp",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "newPassword",
+      "value": "Fresh5678#",
+      "type": "string"
+    },
+    {
+      "key": "changedPassword",
+      "value": "Third9012$",
       "type": "string"
     }
   ],
@@ -4038,6 +4063,748 @@
           ]
         },
         {
+          "name": "Tasks",
+          "item": [
+            {
+              "name": "Owner Creates Org Task",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 201\", () => {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "const task = pm.response.json().task;",
+                      "pm.test(\"Org ka task, banane wala owner (name/email ke saath)\", () => {",
+                      "  pm.expect(task.org).to.eql(pm.environment.get(\"orgId\"));",
+                      "  pm.expect(task.user._id).to.eql(pm.environment.get(\"ownerId\"));",
+                      "  pm.expect(task.user.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
+                      "});",
+                      "pm.collectionVariables.set(\"orgTaskId\", task._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Postman org task\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Viewer Creates Org Task (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Member role chahiye\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"This action needs the member role or higher (your role: viewer)\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Viewer task\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Viewer Lists Org Tasks (Read Access)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Owner ka task list mein\", () => {",
+                      "  const ids = pm.response.json().tasks.map((t) => t._id);",
+                      "  pm.expect(ids).to.include(pm.collectionVariables.get(\"orgTaskId\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Viewer Marks Task Done (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{orgTaskId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"completed\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Change Role: Viewer → Member (Setup)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"B ab member hai\", () => {",
+                      "  pm.expect(pm.response.json().member.role).to.eql(\"member\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}/role",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"member\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Member Creates Own Task",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 201\", () => {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "const task = pm.response.json().task;",
+                      "pm.test(\"Banane wala B\", () => {",
+                      "  pm.expect(task.user._id).to.eql(pm.environment.get(\"memberId\"));",
+                      "});",
+                      "pm.collectionVariables.set(\"memberTaskId\", task._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Postman member task\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Member Marks Owner's Task Done",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// done/pending team ka kaam hai — member kisi ka bhi task kar sakta hai",
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Done, banane wala owner hi\", () => {",
+                      "  const task = pm.response.json().task;",
+                      "  pm.expect(task.completed).to.eql(true);",
+                      "  pm.expect(task.user._id).to.eql(pm.environment.get(\"ownerId\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{orgTaskId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"completed\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Member Renames Owner's Task (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Sirf apna task\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Your role (member) can only rename tasks you created\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{orgTaskId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Hijacked\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Member Deletes Owner's Task (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 403\", () => {",
+                      "  pm.response.to.have.status(403);",
+                      "});",
+                      "pm.test(\"Sirf apna task\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Your role (member) can only delete tasks you created\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{orgTaskId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Owner Renames Member's Task",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Naam badla\", () => {",
+                      "  pm.expect(pm.response.json().task.title).to.eql(\"Postman member task (by owner)\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{memberTaskId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Postman member task (by owner)\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Org Task Validation - Empty Body (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 400\", () => {",
+                      "  pm.response.to.have.status(400);",
+                      "});",
+                      "pm.test(\"Koi field nahi\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Provide title or completed to update\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{memberTaskId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Member Deletes Own Task",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Task deleted\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Task deleted\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{memberTaskId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Deleted Org Task (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Task not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Task not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/tasks/{{memberTaskId}}"
+              }
+            },
+            {
+              "name": "Org Task Not In Personal List",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// org ke tasks personal /tasks mein kabhi nahi",
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"orgTaskId personal list mein nahi\", () => {",
+                      "  const ids = pm.response.json().map((t) => t._id);",
+                      "  pm.expect(ids).to.not.include(pm.collectionVariables.get(\"orgTaskId\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/tasks"
+              }
+            },
+            {
+              "name": "Personal Route Reads Org Task (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/tasks/{{orgTaskId}}"
+              }
+            },
+            {
+              "name": "Cross-Org: Task Via Other Organization (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// A dono orgs ka owner hai — phir bhi Org A ka task Org B ke route se nahi milta",
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Task not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Task not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}/tasks/{{orgTaskId}}"
+              }
+            },
+            {
+              "name": "Non-Member Lists Org Tasks (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Organization not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Organization not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}/tasks",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Change Role: Member → Viewer (Restore)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"B ab viewer hai\", () => {",
+                      "  pm.expect(pm.response.json().member.role).to.eql(\"viewer\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}/role",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "Ownership",
           "description": "Ghalat password, viewer, sahi transfer, baad ki halat",
           "item": [
@@ -4302,6 +5069,10 @@
                   "  pm.expect(body.message).to.eql(\"Organization deleted\");",
                   "  pm.expect(body.deleted.members).to.eql(1);",
                   "  pm.expect(body.deleted.invitations).to.be.at.least(2);",
+                  "});",
+                  "// org ke tasks bhi mite",
+                  "pm.test(\"Org ka bacha task bhi mita\", () => {",
+                  "  pm.expect(pm.response.json().deleted.tasks).to.eql(1);",
                   "});"
                 ]
               }
@@ -4397,6 +5168,561 @@
               }
             ],
             "url": "{{baseUrl}}/orgs/{{otherOrgId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Password",
+      "item": [
+        {
+          "name": "Forgot Password (User A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// jawab hamesha yahi (account ho ya na ho) — devOtp sirf EXPOSE_DEV_OTP par",
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Generic message + devOtp\", () => {",
+                  "  pm.expect(body.message).to.eql(\"If an account exists for this email, a password reset code has been sent.\");",
+                  "  pm.expect(body.devOtp).to.match(/^\\d{6}$/);",
+                  "});",
+                  "pm.collectionVariables.set(\"resetOtp\", body.devOtp);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/forgot-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Reset Password - Wrong Code (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// asli code 000000 ho (10 lakh mein ek) to yeh test ghalat fail hoga — dobara chalayein",
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Ek hi generic message\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Invalid or expired code\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/reset-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"otp\": \"000000\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Reset Password - Weak Password (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"password field ki galti\", () => {",
+                  "  pm.expect(pm.response.json().errors[0].field).to.eql(\"password\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/reset-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"otp\": \"{{resetOtp}}\",\n  \"password\": \"weakpass\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Badal gaya, login nahi karwaya (token nahi)\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.message).to.eql(\"Your password has been changed. Please log in with your new password.\");",
+                  "  pm.expect(body).to.not.have.property(\"token\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/reset-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"otp\": \"{{resetOtp}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Reset Code Used Again (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/reset-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"otp\": \"{{resetOtp}}\",\n  \"password\": \"Another9876$\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Old Access Token Rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// reset se pehle bana token — password badalte hi rad (15 minute ka intezar nahi)",
+                  "pm.test(\"Status 401\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Invalid or expired token\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Invalid or expired token\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/profile"
+          }
+        },
+        {
+          "name": "Login With Old Password (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login/request-otp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Request Login OTP (New Password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set(\"loginToken\", body.loginToken);",
+                  "pm.collectionVariables.set(\"loginOtp\", body.devOtp);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login/request-otp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP (New Password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.environment.set(\"accessToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login/verify-otp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loginToken\": \"{{loginToken}}\",\n  \"otp\": \"{{loginOtp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Change Password - Wrong Current (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 403, 401 nahi — token theek hai, sirf password ghalat (401 par frontend session expire samajhta)",
+                  "pm.test(\"Status 403\", () => {",
+                  "  pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"Incorrect password\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Incorrect password\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/change-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Nope1234!\",\n  \"newPassword\": \"{{changedPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Change Password - Same As Current (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Naya alag ho\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"New password must be different from your current password\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/change-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{newPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Naya token, refresh cookie bhi\", () => {",
+                  "  pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(pm.response.headers.get(\"Set-Cookie\")).to.match(/refreshToken=/);",
+                  "});",
+                  "// purana token ab rad — aage naya",
+                  "pm.environment.set(\"accessToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/change-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{newPassword}}\",\n  \"newPassword\": \"{{changedPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Profile With New Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Wahi user\", () => {",
+                  "  pm.expect(pm.response.json().user.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/profile"
+          }
+        },
+        {
+          "name": "Refresh After Change",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// change-password ki nayi cookie (cookie jar) — is device ka session chalta rehta hai",
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.environment.set(\"accessToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh",
+            "auth": {
+              "type": "noauth"
+            }
           }
         }
       ]

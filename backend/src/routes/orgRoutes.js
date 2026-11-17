@@ -6,6 +6,7 @@ const { handleValidation } = require("../middleware/validate");
 const memberRoutes = require("./memberRoutes");
 const memberController = require("../controllers/memberController");
 const orgInvitationRoutes = require("./orgInvitationRoutes");
+const orgTaskRoutes = require("./orgTaskRoutes");
 
 // app.js mein "/orgs" par authMiddleware ke BAAD — har route ko token chahiye
 // /orgs/:orgId ke neeche har route par requireRole — role ka check sirf wahan, controller mein kabhi nahi
@@ -183,7 +184,7 @@ router.post("/", createOrgRules, handleValidation, orgController.createOrg);
  *     tags: [Organizations]
  *     summary: Org delete (sirf owner)
  *     description: |
- *       Org, us ki saari memberships aur pending invitations **ek transaction** mein mitti hain —
+ *       Org, us ki saari memberships, invitations aur org ke tasks **ek transaction** mein mitte hain —
  *       beech mein galti ho to kuch bhi nahi mitta. Admin, member, viewer ko 403; member hi nahi to 404.
  *     security:
  *       - ApiKeyAuth: []
@@ -192,7 +193,7 @@ router.post("/", createOrgRules, handleValidation, orgController.createOrg);
  *       - $ref: "#/components/parameters/OrgId"
  *     responses:
  *       200:
- *         description: Org aur us ka saara membership/invitation data mit gaya
+ *         description: Org aur us ka saara membership/invitation/task data mit gaya
  *         content:
  *           application/json:
  *             schema:
@@ -212,6 +213,9 @@ router.post("/", createOrgRules, handleValidation, orgController.createOrg);
  *                     invitations:
  *                       type: integer
  *                       example: 1
+ *                     tasks:
+ *                       type: integer
+ *                       example: 7
  *       401:
  *         $ref: "#/components/responses/Unauthorized"
  *       403:
@@ -229,6 +233,8 @@ router.delete("/:orgId", requireRole("owner"), orgController.deleteOrg);
 // members ke routes alag file mein — requireRole wahan har route par
 router.use("/:orgId/members", memberRoutes);
 router.use("/:orgId/invitations", orgInvitationRoutes);
+// org ke tasks — har route par apna requireRole (dekhna viewer, badalna member+)
+router.use("/:orgId/tasks", orgTaskRoutes);
 
 /**
  * @openapi

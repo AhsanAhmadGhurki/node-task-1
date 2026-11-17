@@ -18,6 +18,7 @@ async function authMiddleware(req, res, next) {
   const token = header.slice("Bearer ".length).trim();
 
   let userId;
+  let issuedAt;
   try {
     // signature galat ho ya token expire ho chuka ho to verify throw karta hai
     // algorithms fix karo — warna token khud bata sakta hai ke kaunsa algorithm use karna hai
@@ -26,19 +27,27 @@ async function authMiddleware(req, res, next) {
     // jwt.verify exp ho to check karta hai, lekin exp ka HONA zaroori nahi maanta —
     // bina exp ka token hamesha chalta; hamare tokens mein exp aur sub hamesha hote hain, na hon to reject
     // sub = MongoDB ObjectId (24 hex) — kuch aur ho to aage queries mein CastError (400) ki jagah yahin 401
-    if (typeof payload.exp !== "number" || typeof payload.sub !== "string" || !OBJECT_ID_PATTERN.test(payload.sub)) {
-      throw new Error("Token missing exp or valid sub");
+    // iat bhi — password badalne se pehle bane tokens pehchanne ke liye (hamare tokens mein hamesha hota hai)
+    if (
+      typeof payload.exp !== "number" ||
+      typeof payload.iat !== "number" ||
+      typeof payload.sub !== "string" ||
+      !OBJECT_ID_PATTERN.test(payload.sub)
+    ) {
+      throw new Error("Token missing exp, iat or valid sub");
     }
 
     userId = payload.sub;
+    issuedAt = payload.iat;
   } catch {
     return next(new UnauthorizedError("Invalid or expired token"));
   }
 
   try {
-    // token sahi, lekin user delete ho chuka — wahi 401 (frontend refresh karega, wo bhi fail, phir logout)
+    // token sahi, lekin user delete ho chuka, ya password is token ke baad badla — wahi 401
+    // (frontend refresh karega; password badla ho to refresh tokens bhi mit chuke, phir logout)
     // DB service ke zariye — middleware Mongoose ko seedha nahi chhoota
-    if (!(await authService.userExists(userId))) {
+    if (!(await authService.userExists(userId, issuedAt))) {
       return next(new UnauthorizedError("Invalid or expired token"));
     }
   } catch (err) {

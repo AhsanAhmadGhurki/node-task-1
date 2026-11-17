@@ -51,7 +51,10 @@ function setupTestApp(name, { realLimiters = false } = {}) {
         resendEmailCooldown: passThrough,
         registerLimiter: passThrough,
         loginLimiter: passThrough,
-        otpVerifyLimiter: passThrough
+        otpVerifyLimiter: passThrough,
+        inviteLimiter: passThrough,
+        forgotPasswordLimiter: passThrough,
+        forgotPasswordCooldown: passThrough
       }
     };
   }

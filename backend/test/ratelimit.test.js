@@ -70,3 +70,39 @@ test("login: account lockout (5) IP limit (50) se pehle — ek account ki galtiy
   // request-otp bhi wahi limiter instance — /auth/login se ja kar limit nahi bachti
   assert.equal((await ctx.post("/auth/login/request-otp", { email: "ip-b@example.com", password: "Wrong1234" })).status, 429);
 });
+
+test("invites: ek user ghante mein 20 kamyab invites — 21va 429; ghalat/409 wale had nahi khaate; doosra user alag", async () => {
+  const jwt = require("jsonwebtoken");
+  const passwordHash = await require("bcryptjs").hash("Valid1234!", 12);
+  const [owner, other, member] = await ctx.mongoose.model("User").create([
+    { email: "inv-owner@example.com", password: passwordHash, isVerified: true },
+    { email: "inv-other@example.com", password: passwordHash, isVerified: true },
+    { email: "inv-member@example.com", password: passwordHash, isVerified: true }
+  ]);
+  // login ki IP had pichhle test mein bhar chuki — token seedha (authMiddleware sirf signature, exp aur user dekhta hai)
+  const tokenOf = (user) => jwt.sign({ sub: user.id }, ctx.config.jwtSecret, { algorithm: "HS256", expiresIn: "15m" });
+  const as = (user) => (route, body) => ctx.request("POST", route, { body, token: tokenOf(user) });
+
+  const orgId = (await as(owner)("/orgs", { name: "Invite limits" })).json.org._id;
+  await ctx.mongoose.model("OrganizationMember").create({ org: orgId, user: member.id, role: "member" });
+  const invite = (user, email) => as(user)(`/orgs/${orgId}/invitations`, { email, role: "viewer" });
+
+  // fail hone wale — had nahi khaate (ghalat email 400 limiter tak pahunchta hi nahi, 409 gina nahi jaata)
+  assert.equal((await invite(owner, "not-an-email")).status, 400);
+  assert.equal((await invite(owner, member.email)).status, 409);
+
+  const statuses = [];
+  for (let i = 0; i < 20; i++) statuses.push((await invite(owner, `limit${i}@example.com`)).status);
+  assert.deepEqual(statuses, Array(20).fill(201));
+
+  const blocked = await invite(owner, "limit20@example.com");
+  assert.equal(blocked.status, 429);
+  assert.match(blocked.json.message, /^You can send at most 20 invitations per hour\. Please try again in \d+ minutes?\.$/);
+  assert.ok(blocked.json.retryAfter > 0 && blocked.json.retryAfter <= 60 * 60, `retryAfter=${blocked.json.retryAfter}`);
+  assert.equal(await ctx.mongoose.model("Invitation").countDocuments({ email: "limit20@example.com" }), 0);
+  assert.equal(ctx.sentInvites.filter((m) => m.email === "limit20@example.com").length, 0);
+
+  // had user ki hai, IP ki nahi — usi IP se doosra user (apni org mein) bhej sakta hai
+  const otherOrg = (await as(other)("/orgs", { name: "Other limits" })).json.org._id;
+  assert.equal((await as(other)(`/orgs/${otherOrg}/invitations`, { email: "fresh@example.com", role: "viewer" })).status, 201);
+});

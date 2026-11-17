@@ -41,14 +41,22 @@ function strongPassword(password) {
 // naya password (register + verify-email) — 8+, 72 bytes tak, aage/peeche space nahi, uppercase + number + special
 // password trim NAHI hota — spaces bhi password ka hissa hain; frontend (helpers.passwordRuleError) bhi yahi rules
 // login par ye rules nahi — purane (kamzor) passwords wale users login kar sakein
-function newPasswordRule() {
-  return requiredString("password", "Password")
-    .notEmpty().withMessage("Password is required").bail()
-    .isLength({ min: 8 }).withMessage("Password must be at least 8 characters").bail()
-    .custom(passwordNotTooLong).withMessage(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`).bail()
+// field/label — change-password par "newPassword" / "New password" (messages bhi usi naam se)
+function newPasswordRule(field = "password", label = "Password") {
+  return requiredString(field, label)
+    .notEmpty().withMessage(`${label} is required`).bail()
+    .isLength({ min: 8 }).withMessage(`${label} must be at least 8 characters`).bail()
+    .custom(passwordNotTooLong).withMessage(`${label} must be at most ${MAX_PASSWORD_BYTES} bytes`).bail()
     // copy-paste mein aaya space user ko dikhta nahi, login par wo type nahi karta
-    .custom((password) => password === password.trim()).withMessage("Password must not start or end with a space").bail()
-    .custom(strongPassword);
+    .custom((password) => password === password.trim()).withMessage(`${label} must not start or end with a space`).bail()
+    .custom((password) => {
+      try {
+        return strongPassword(password);
+      } catch (err) {
+        // strongPassword ke messages "Password must…" se shuru — label badla ho to wahi naam
+        throw new Error(err.message.replace(/^Password/, label));
+      }
+    });
 }
 
 // POST /auth/register
@@ -64,10 +72,10 @@ const verifyEmailRules = [
 ];
 
 // maujooda password (login, ownership transfer) — naye password ke rules NAHI (purane passwords wale bhi chalein), sirf required + 72 bytes
-function currentPasswordRule() {
-  return requiredString("password", "Password")
-    .notEmpty().withMessage("Password is required").bail()
-    .custom(passwordNotTooLong).withMessage(`Password must be at most ${MAX_PASSWORD_BYTES} bytes`);
+function currentPasswordRule(field = "password", label = "Password") {
+  return requiredString(field, label)
+    .notEmpty().withMessage(`${label} is required`).bail()
+    .custom(passwordNotTooLong).withMessage(`${label} must be at most ${MAX_PASSWORD_BYTES} bytes`);
 }
 
 // POST /auth/login
@@ -81,4 +89,26 @@ const verifyLoginOtpRules = [
   requiredString("otp", "Code").matches(/^\d{6}$/).withMessage("Code must be 6 digits")
 ];
 
-module.exports = { registerRules, verifyEmailRules, loginRules, verifyLoginOtpRules, emailRule, currentPasswordRule };
+// POST /auth/reset-password — verify-email jaisa: email + 6 digit code + naya password (register wale rules)
+const resetPasswordRules = [
+  requiredString("email", "Email").trim().toLowerCase().notEmpty().withMessage("Email is required"),
+  requiredString("otp", "Code").matches(/^\d{6}$/).withMessage("Code must be 6 digits"),
+  newPasswordRule()
+];
+
+// POST /user/change-password — maujooda password (purane kamzor bhi chalein) + naya (register wale rules)
+const changePasswordRules = [
+  currentPasswordRule("currentPassword", "Current password"),
+  newPasswordRule("newPassword", "New password")
+];
+
+module.exports = {
+  registerRules,
+  verifyEmailRules,
+  loginRules,
+  verifyLoginOtpRules,
+  resetPasswordRules,
+  changePasswordRules,
+  emailRule,
+  currentPasswordRule
+};

@@ -35,7 +35,8 @@ const OTP_TTL_MS = config.otpTtlMs;
 const OTP_MAX_ATTEMPTS = 5;
 // verify-email 3 — ek dafa ka kaam; login 10 — har login (logout/login, doosra device) naya code maangta hai,
 // 3 par aam user ghante mein 4th login par band ho jaata. login code sirf sahi password par banta hai, to spam bhi sirf password wala kar sakta hai
-const OTP_MAX_REQUESTS = { "verify-email": 3, login: 10 };
+// reset-password 3 — har code ek email; aam user ko ek-do hi chahiye
+const OTP_MAX_REQUESTS = { "verify-email": 3, login: 10, "reset-password": 3 };
 const OTP_WINDOW_MS = 60 * 60 * 1000;
 // bcrypt — code sirf 10 lakh mein se ek hai, SHA-256 hota to DB leak par second mein toot jaata
 // cost 10 (password wale 12 se kam) — code 5 minute ka hai, har request par 250ms kyun lagayein
@@ -390,8 +391,33 @@ async function checkCredentials({ email, password }) {
 
 // har protected request par — token sahi hone ke bawajood user delete ho chuka ho to session khatam
 // (warna access token 15 minute tak chalta, aur delete hue user ke naam par tasks ban jaate)
-async function userExists(userId) {
-  return Boolean(await User.exists({ _id: userId }));
+// issuedAt (JWT ka iat, seconds) — password badalne se PEHLE bana token bhi rad (chura hua token password badalte hi bekaar)
+// passwordChangedAt null (kabhi nahi badla, ya purana user jis mein field hi nahi) — har token chalta hai
+async function userExists(userId, issuedAt) {
+  return Boolean(
+    await User.exists({
+      _id: userId,
+      $or: [{ passwordChangedAt: null }, { passwordChangedAt: { $lte: new Date(issuedAt * 1000) } }]
+    })
+  );
+}
+
+// naya password lagao — reset aur change dono yahi: hash, lockout saaf, aur har device ka session band
+// passwordChangedAt second tak neeche (JWT ka iat second mein hai) — warna isi second mein bana naya token bhi rad ho jaata;
+// qeemat: isi ek second mein pehle bana purana token bhi bach jaata hai
+async function setNewPassword(userId, password) {
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const changedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const updated = await User.findOneAndUpdate(
+    { _id: userId },
+    { $set: { password: passwordHash, passwordChangedAt: changedAt, failedLoginAttempts: 0, lockUntil: null } },
+    { returnDocument: "after" }
+  );
+  // saare refresh tokens MITA do (revoke nahi) — chor ke paas session ho to woh bhi khatam (access tokens upar wale check se)
+  // revoke karte to doosra device apna purana cookie bhejta, refreshSession use "revoked token dobara aaya = chori" samajh kar
+  // user ke SAARE tokens band kar deta — change-password ke baad isi device ko diya naya session bhi
+  await RefreshToken.deleteMany({ user: userId });
+  return updated;
 }
 
 // login ka code bhej diya
@@ -544,6 +570,82 @@ async function refreshSession(refreshToken) {
   };
 }
 
+// ---------- password bhool gaye / badalna ----------
+
+// har halat mein yahi jawab — account na ho, unverified ho, code gaya ho, ya ghante ki had (3) poori ho
+// (alag hote to koi bhi email daal kar pata kar leta ke account hai ya nahi)
+const FORGOT_RESPONSE = { message: "If an account exists for this email, a password reset code has been sent." };
+
+// POST /auth/forgot-password — verified account ho to email par reset ka code
+// unverified ko nahi — us ke liye register/verify ka raasta hai (aur us ka password waise bhi verify par lagta hai)
+async function forgotPassword(email) {
+  const user = await User.findOne({ email: normalizeEmail(email) });
+
+  if (!user || !user.isVerified) {
+    // naya code banane (bcrypt) jitna waqt — warna jaldi jawab bata deta ke yahan verified account nahi
+    await bcrypt.hash("000000", OTP_SALT_ROUNDS);
+    return FORGOT_RESPONSE;
+  }
+
+  let otp;
+  try {
+    otp = await issueOtp(user._id, "reset-password");
+  } catch (err) {
+    // ghante ki had — email nahi, lekin 429 bhi nahi (warna 429 batata ke yahan account hai)
+    if (err instanceof TooManyRequestsError) {
+      return FORGOT_RESPONSE;
+    }
+    throw err;
+  }
+
+  // await nahi — response SMTP ka intezar na kare
+  emailService.sendOtpEmail(user.email, otp, "reset-password");
+
+  return { ...FORGOT_RESPONSE, ...devOtpField(otp) };
+}
+
+const INVALID_RESET_CODE = "Invalid or expired code";
+
+// POST /auth/reset-password — email + code + naya password; har galti ka ek hi jawab (verify-email jaisa)
+// login nahi karwata — naya password ab 2FA login se (code + password ek hi shakhs ke paas hon, yahi saboot kaafi nahi samjha)
+async function resetPassword({ email, otp, password }) {
+  const invalid = new BadRequestError(INVALID_RESET_CODE);
+
+  const user = await User.findOne({ email: normalizeEmail(email) });
+  if (!user || !user.isVerified) {
+    await bcrypt.compare(otp, DUMMY_OTP_HASH);
+    throw invalid;
+  }
+
+  await consumeOtp(user._id, "reset-password", otp, invalid);
+  await setNewPassword(user._id, password);
+
+  return { message: "Your password has been changed. Please log in with your new password." };
+}
+
+// POST /user/change-password — logged-in user; purana password dobara (lockout ginti wahi: 5 ghalat par 423)
+// baqi saare devices logout, lekin YEH device nahi — naya access token + refresh token wapas
+async function changePassword(userId, { currentPassword, newPassword }) {
+  // ghalat par 403 "Incorrect password" (401 nahi — frontend 401 par token refresh karke dobara bhejta)
+  await confirmPassword(userId, currentPassword);
+
+  if (currentPassword === newPassword) {
+    throw new BadRequestError("New password must be different from your current password");
+  }
+
+  const user = await setNewPassword(userId, newPassword);
+  if (!user) {
+    throw new UnauthorizedError("Invalid or expired token");
+  }
+
+  return {
+    message: "Your password has been changed. Other devices have been logged out.",
+    token: signAccessToken(user),
+    refreshToken: await issueRefreshToken(user._id),
+    user
+  };
+}
+
 // POST /auth/logout — refresh token band; dobara refresh nahi ho sakega
 // token na ho ya pehle hi band ho to bhi theek (logout hamesha kamyab)
 async function logout(refreshToken) {
@@ -566,6 +668,9 @@ module.exports = {
   logout,
   userExists,
   confirmPassword,
+  forgotPassword,
+  resetPassword,
+  changePassword,
   // controller ko cookie ki umar isi se — DB expiry ke barabar
   REFRESH_TOKEN_TTL_MS,
   resendVerification

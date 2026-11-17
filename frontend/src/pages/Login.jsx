@@ -125,7 +125,15 @@ export default function Login() {
             required
           />
         </div>
-        <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" />
+        <div className="flex flex-col gap-1.5">
+          <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" />
+          {/* password ke neeche, daayen — wahi jagah jahan log dhoondte hain; hint nahi (warna field ki description ban jaata) */}
+          <p className="flex justify-end text-xs">
+            <Link to="/forgot-password" className={link}>
+              Password bhool gaye?
+            </Link>
+          </p>
+        </div>
         <button type="submit" className={cn(button(), 'mt-2 w-full')} disabled={loading}>
           {loading ? 'Please wait…' : 'Login'}
         </button>

@@ -43,6 +43,7 @@ test("spec mein har endpoint hai, aur har response ka koi example/schema", async
   const expected = [
     "POST /auth/register", "POST /auth/verify-email", "POST /auth/resend-verification", "POST /auth/login",
     "POST /auth/login/request-otp", "POST /auth/login/verify-otp", "POST /auth/refresh", "POST /auth/logout",
+    "POST /auth/forgot-password", "POST /auth/reset-password", "POST /user/change-password",
     "GET /tasks", "POST /tasks", "GET /tasks/{id}", "PUT /tasks/{id}", "DELETE /tasks/{id}",
     "POST /user/upload-avatar", "GET /user/profile", "PATCH /user/profile",
     "GET /tickets", "POST /tickets", "GET /tickets/{id}",
@@ -52,6 +53,8 @@ test("spec mein har endpoint hai, aur har response ka koi example/schema", async
     "DELETE /orgs/{orgId}/members/{userId}", "PATCH /orgs/{orgId}/members/{userId}/role",
     "POST /orgs/{orgId}/leave", "POST /orgs/{orgId}/transfer-ownership",
     "GET /orgs/{orgId}/invitations", "POST /orgs/{orgId}/invitations", "DELETE /orgs/{orgId}/invitations/{inviteId}",
+    "GET /orgs/{orgId}/tasks", "POST /orgs/{orgId}/tasks", "GET /orgs/{orgId}/tasks/{taskId}",
+    "PUT /orgs/{orgId}/tasks/{taskId}", "DELETE /orgs/{orgId}/tasks/{taskId}",
     "GET /invitations/{token}", "POST /invitations/{token}/accept",
     "GET /invitations", "POST /invitations/received/{inviteId}/accept", "POST /invitations/received/{inviteId}/decline"
   ];

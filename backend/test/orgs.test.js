@@ -229,7 +229,7 @@ test("delete — owner → 200; org, saari memberships aur invitations mit gayin
   const res = await as(alice).delete(`/orgs/${orgId}`);
   assert.equal(res.status, 200);
   assert.equal(res.json.message, "Organization deleted");
-  assert.deepEqual(res.json.deleted, { members: 4, invitations: 1 });
+  assert.deepEqual(res.json.deleted, { members: 4, invitations: 1, tasks: 0 });
 
   assert.equal(await Org().findById(orgId), null);
   assert.equal(await Member().countDocuments({ org: orgId }), 0);
