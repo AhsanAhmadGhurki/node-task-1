@@ -15,7 +15,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // browser /api/... ko call karta hai (same origin, CORS nahi) — Vite aage backend ko bhejta hai
         '/api': {
-          target: 'http://localhost:4000',
+          // backend ka address .env se — pehle 4000 likha tha jabke backend ka default PORT 3000 hai,
+          // to README ke mutabiq setup karne wale ka frontend backend tak pahunchta hi nahi tha
+          target: env.BACKEND_URL || 'http://localhost:3000',
           rewrite: (path) => path.replace(/^\/api/, ''),
           // API key yahin (Node mein) lagti hai — frontend code mein kabhi nahi
           headers: { 'x-api-key': env.API_KEY },

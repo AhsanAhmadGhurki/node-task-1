@@ -27,7 +27,7 @@ Frontend (run from `frontend/`):
 - `npm run dev`: Vite dev server on http://localhost:5173
 - `npm run build`, `npm run lint` (oxlint)
 
-`frontend/.env` must contain `API_KEY` with the same value as the backend's.
+`frontend/.env` must contain `API_KEY` with the same value as the backend's, plus `BACKEND_URL` when the backend isn't on `http://localhost:3000` (the Vite proxy target; the local `.env` uses port 4000).
 
 Every API request needs an `x-api-key` header. `/tasks` routes also need `Authorization: Bearer <token>` from `POST /auth/login`:
 ```

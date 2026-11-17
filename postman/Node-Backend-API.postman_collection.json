@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Node Backend API Testing",
-    "description": "Auth, Tickets aur Files ke end-to-end tests. Environment (local/staging) select karke Collection Runner ya Newman se chalayein. Backend mein EXPOSE_DEV_OTP=true (sirf non-production) hona chahiye, taake OTP code response (devOtp) se mile.",
+    "description": "Auth, Tasks, Profile, Tickets, Files aur Orgs (invitations, members, ownership) ke end-to-end tests. Environment (local/staging) select karke Collection Runner ya Newman se chalayein. Backend mein EXPOSE_DEV_OTP=true (sirf non-production) hona chahiye, taake OTP code response (devOtp) se mile.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -91,6 +91,16 @@
     },
     {
       "key": "signedUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "taskId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "receivedInviteId",
       "value": "",
       "type": "string"
     }
@@ -458,6 +468,937 @@
               }
             },
             "url": "{{baseUrl}}/auth/login/request-otp"
+          }
+        },
+        {
+          "name": "Resend Verification (Generic Response)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A pehle hi verified hai — phir bhi wahi generic 200, taake koi emails ka pata na laga sake",
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Generic message (account ki halat nahi batata)\", () => {",
+                  "  pm.expect(pm.response.json().message).to.match(/If that account exists/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/resend-verification",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Password-only Login Disabled (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// sirf password se login band — 2FA chhoda nahi ja sakta",
+                  "pm.test(\"Status 410\", () => {",
+                  "  pm.response.to.have.status(410);",
+                  "});",
+                  "pm.test(\"request-otp ki taraf bhejta hai\", () => {",
+                  "  pm.expect(pm.response.json().message).to.match(/request-otp/);",
+                  "});",
+                  "pm.test(\"Token nahi mila\", () => {",
+                  "  pm.expect(pm.response.json()).to.not.have.property(\"token\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userAEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Refresh Access Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// refresh cookie (httpOnly, Path=/auth) Newman ke cookie jar se khud jaati hai — verify-otp ne lagayi thi",
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Naya token, User A ka\", () => {",
+                  "  pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(body.user.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
+                  "});",
+                  "pm.test(\"Refresh token body mein nahi (sirf cookie)\", () => {",
+                  "  pm.expect(body).to.not.have.property(\"refreshToken\");",
+                  "});",
+                  "// aage ki requests naya token istemal karein",
+                  "pm.environment.set(\"accessToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh"
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Logged out\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Logged out\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/logout"
+          }
+        },
+        {
+          "name": "Refresh After Logout (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// logout ne refresh token band kar diya — naya access token nahi milta",
+                  "// (access token 15 minute tak chalta rehta hai, is liye aage ki requests theek chalti hain)",
+                  "pm.test(\"Status 401\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Session expired message\", () => {",
+                  "  pm.expect(pm.response.json().message).to.match(/Session expired/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "Create Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Task bana, pending hai\", () => {",
+                  "  pm.expect(body.title).to.eql(\"Postman task\");",
+                  "  pm.expect(body.completed).to.eql(false);",
+                  "  pm.expect(body.user).to.eql(pm.environment.get(\"ownerId\"));",
+                  "});",
+                  "pm.collectionVariables.set(\"taskId\", body._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman task\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Task - Empty Title (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Title required\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Title is required\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"   \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Task - Title Too Long (Failure Test)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"longTitle\", \"x\".repeat(201));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"200 ki had\", () => {",
+                  "  pm.expect(pm.response.json().message).to.match(/at most 200/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{longTitle}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get All Tasks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Naya task list mein hai\", () => {",
+                  "  const ids = pm.response.json().map((t) => t._id);",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get(\"taskId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks"
+          }
+        },
+        {
+          "name": "Get Task by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Wahi task\", () => {",
+                  "  pm.expect(pm.response.json()._id).to.eql(pm.collectionVariables.get(\"taskId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "Update Task - Mark Done",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Done ho gaya, title wahi\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.completed).to.eql(true);",
+                  "  pm.expect(body.title).to.eql(\"Postman task\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Task - Rename",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Sirf title badla, completed wahi raha\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.title).to.eql(\"Postman task (renamed)\");",
+                  "  pm.expect(body.completed).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman task (renamed)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Task - String Completed (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// \"true\" string chupke se true nahi banti — sirf asli boolean",
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Boolean chahiye\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Completed must be true or false\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": \"true\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Task - Empty Body (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Koi field nahi\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Provide title or completed to update\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Another User's Task (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 403 nahi, 404 — doosre user ko pata hi na chale ke yeh id maujood hai",
+                  "pm.test(\"Status 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Task not found\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Task not found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userBToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Another User Deletes Task (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userBToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invalid Task ID (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Invalid _id\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Invalid _id\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/not-an-id"
+          }
+        },
+        {
+          "name": "Get Tasks Without Token (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Token missing\", () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(\"Authentication token missing\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Delete Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Delete hua task wapas mila\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.message).to.eql(\"Task deleted\");",
+                  "  pm.expect(body.task._id).to.eql(pm.collectionVariables.get(\"taskId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "Get Deleted Task (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const user = pm.response.json().user;",
+                  "pm.test(\"Apna profile, password ke baghair\", () => {",
+                  "  pm.expect(user.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
+                  "  pm.expect(user).to.not.have.property(\"password\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const user = pm.response.json().user;",
+                  "pm.test(\"Name aur phone badle\", () => {",
+                  "  pm.expect(user.name).to.eql(\"Postman User A\");",
+                  "  pm.expect(user.phone).to.eql(\"03001234567\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/profile",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman User A\",\n  \"phone\": \"03001234567\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Profile - Invalid Fields (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// har ghalat field ka apna message — errors array mein",
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Dono fields ki galti\", () => {",
+                  "  const fields = pm.response.json().errors.map((e) => e.field);",
+                  "  pm.expect(fields).to.include.members([\"name\", \"phone\"]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/profile",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"A\",\n  \"phone\": \"12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Profile - Unsupported Field (Failure Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// email/isVerified jaisi field chupke se ignore nahi hoti — 400",
+                  "pm.test(\"Status 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Unsupported field\", () => {",
+                  "  pm.expect(pm.response.json().message).to.match(/Unsupported field\\(s\\): email/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/profile",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"someone-else@example.test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Profile After Update",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Email wahi raha, name save hua\", () => {",
+                  "  const user = pm.response.json().user;",
+                  "  pm.expect(user.email).to.eql(pm.collectionVariables.get(\"userAEmail\"));",
+                  "  pm.expect(user.name).to.eql(\"Postman User A\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/user/profile"
           }
         }
       ]
@@ -2742,7 +3683,7 @@
               }
             },
             {
-              "name": "Accept Other Org Invitation (Setup)",
+              "name": "List Received Invitations (User B)",
               "event": [
                 {
                   "listen": "test",
@@ -2752,8 +3693,52 @@
                       "pm.test(\"Status 200\", () => {",
                       "  pm.response.to.have.status(200);",
                       "});",
-                      "pm.test(\"Viewer bana\", () => {",
-                      "  pm.expect(pm.response.json().role).to.eql(\"viewer\");",
+                      "const invite = pm.response.json().invitations.find((i) => i.org._id === pm.environment.get(\"otherOrgId\"));",
+                      "pm.test(\"Dusri org ka invite B ki list mein\", () => {",
+                      "  pm.expect(invite).to.be.an(\"object\");",
+                      "  pm.expect(invite.email).to.eql(pm.collectionVariables.get(\"userBEmail\"));",
+                      "  pm.expect(invite).to.not.have.property(\"tokenHash\");",
+                      "});",
+                      "pm.collectionVariables.set(\"receivedInviteId\", invite && invite._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Decline Received Invitation",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Declined\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Invitation declined\");",
                       "});"
                     ]
                   }
@@ -2768,7 +3753,203 @@
                     "type": "text"
                   }
                 ],
-                "url": "{{baseUrl}}/invitations/{{inviteToken}}/accept",
+                "url": "{{baseUrl}}/invitations/received/{{receivedInviteId}}/decline",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Accept Declined Invitation (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// decline par invite mit jaata hai — ab accept nahi ho sakta",
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/received/{{receivedInviteId}}/accept",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Invite B To Other Org Again (Setup)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 201\", () => {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"devToken mila\", () => {",
+                      "  pm.expect(pm.response.json().devToken).to.be.a(\"string\");",
+                      "});",
+                      "pm.environment.set(\"inviteToken\", pm.response.json().devToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/orgs/{{otherOrgId}}/invitations",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{userBEmail}}\",\n  \"role\": \"viewer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "List Received Invitations Again",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "const invite = pm.response.json().invitations.find((i) => i.org._id === pm.environment.get(\"otherOrgId\"));",
+                      "pm.test(\"Dusri org ka invite B ki list mein\", () => {",
+                      "  pm.expect(invite).to.be.an(\"object\");",
+                      "  pm.expect(invite.email).to.eql(pm.collectionVariables.get(\"userBEmail\"));",
+                      "  pm.expect(invite).to.not.have.property(\"tokenHash\");",
+                      "});",
+                      "pm.collectionVariables.set(\"receivedInviteId\", invite && invite._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{userBToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Accept Someone Else's Invitation (Failure Test)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// User A (org ka owner) bhi B ka invite id se accept nahi kar sakta — sirf apne email ke invites",
+                      "pm.test(\"Status 404\", () => {",
+                      "  pm.response.to.have.status(404);",
+                      "});",
+                      "pm.test(\"Invitation not found\", () => {",
+                      "  pm.expect(pm.response.json().message).to.eql(\"Invitation not found\");",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/received/{{receivedInviteId}}/accept"
+              }
+            },
+            {
+              "name": "Accept Received Invitation (User B)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// link (token) ke baghair — logged-in user ka verified email hi saboot",
+                      "pm.test(\"Status 200\", () => {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Viewer bana, sahi org mein\", () => {",
+                      "  const body = pm.response.json();",
+                      "  pm.expect(body.role).to.eql(\"viewer\");",
+                      "  pm.expect(body.org._id).to.eql(pm.environment.get(\"otherOrgId\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "{{apiKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": "{{baseUrl}}/invitations/received/{{receivedInviteId}}/accept",
                 "auth": {
                   "type": "bearer",
                   "bearer": [

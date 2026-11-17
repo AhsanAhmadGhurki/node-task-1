@@ -160,7 +160,7 @@ Organization creation and deletion, role changes, removing members, leaving, acc
 
 > ⚠️ **`EXPOSE_DEV_OTP=true` puts secrets in API responses.** It adds `devOtp` (the email code) to `POST /auth/register` and `POST /auth/login/request-otp`, and `devToken` (the raw invite token) to `POST /orgs/:orgId/invitations`, so the Postman collection can run without reading email. **Never set it outside local development.** The server refuses to start when it's `true` with `NODE_ENV=production`, and the config ignores it in production anyway. The automated tests force it off.
 
-`frontend/.env` needs only `API_KEY`, set to the same value as the backend's. Don't give it a `VITE_` prefix, or it would be bundled into the browser code.
+`frontend/.env` needs `API_KEY`, set to the same value as the backend's. If the backend doesn't run on port 3000, also set `BACKEND_URL` (for example `http://localhost:4000`); the Vite proxy forwards `/api` there and defaults to `http://localhost:3000`. Don't give it a `VITE_` prefix, or it would be bundled into the browser code.
 
 ## Database structure
 
@@ -313,7 +313,7 @@ cd backend
 npm test
 ```
 
-This runs every `test/*.test.js` with Node's built-in test runner (currently **188 tests**). It needs MongoDB **as a replica set**. Each file creates its own `<db>_<name>_test` database and drops it afterwards, so your data isn't touched. Emails are captured instead of sent, and `EXPOSE_DEV_OTP` is forced off.
+This runs every `test/*.test.js` with Node's built-in test runner (currently **192 tests**). It needs MongoDB **as a replica set**. Each file creates its own `<db>_<name>_test` database and drops it afterwards, so your data isn't touched. Emails are captured instead of sent, and `EXPOSE_DEV_OTP` is forced off.
 
 | File | Covers |
 |---|---|
@@ -329,7 +329,7 @@ One file: `node --env-file=.env --test test/members.test.js`; one test: add `--t
 
 ## Postman and Newman
 
-The collection is `postman/Node-Backend-API.postman_collection.json`, with the folders **Auth**, **Tickets**, **Files** and **Orgs** (the last one has the subfolders **Invitations**, **Members** and **Ownership**). It runs end to end with no manual steps: 77 requests and 236 assertions.
+The collection is `postman/Node-Backend-API.postman_collection.json`, with the folders **Auth**, **Tasks**, **Profile**, **Tickets**, **Files** and **Orgs** (the last one has the subfolders **Invitations**, **Members** and **Ownership**). It runs end to end with no manual steps: 108 requests and 328 assertions, covering every route in the tables above.
 
 **Before running:** the backend must be running with `EXPOSE_DEV_OTP=true` in `backend/.env`, so the collection can read email codes and invite tokens from the responses.
 
@@ -352,4 +352,6 @@ This passes `API_KEY` from `.env` (the committed environment files keep it empty
 
 When the collection changes, re-import only the collection file; re-importing the environment would clear `apiKey`.
 
-**How the Orgs folder works:** user A creates the org. User B is invited using the `devToken` from the response and joins as `admin`, then the owner changes B to `member` and then to `viewer`, and each role's allowed and denied actions are checked. Then ownership goes to B and both orgs are deleted. The negative cases are: unverified login, empty name, owner-role invite, invalid email, wrong-email accept, accepting twice, inviting an existing member, a replaced link (`410`), admin inviting an admin, cancelled and invalid tokens, admin removing the owner or deleting the org, member and viewer permission errors, invalid role, the last owner demoting or leaving, cross-org access (`404`), wrong transfer password and a viewer attempting a transfer. Expired invitations can't be simulated in Postman, because it can't move time forward; `npm test` covers them.
+**What the other folders check:** **Auth** registers and verifies both users, logs user A in with 2FA, then checks resend (the same generic `200` for a verified account), password-only login (`410`), refresh (the cookie from Newman's cookie jar, a new token, no refresh token in the body), logout, and refresh after logout (`401`). **Tasks** runs create, list, read, mark done, rename and delete, and the failures: empty or 201-character title, `"true"` as a string, an empty update, an invalid ID (`400`), no token (`401`), and user B reading or deleting A's task (`404`). **Profile** reads and updates the name and phone, and checks the per-field `errors` array and that `email` can't be changed (`400`).
+
+**How the Orgs folder works:** user A creates the org. User B is invited using the `devToken` from the response and joins as `admin`, then the owner changes B to `member` and then to `viewer`, and each role's allowed and denied actions are checked. For the second org, B uses the **received** invitations instead of the link: B lists them, declines one (accepting it afterwards gives `404`), gets invited again, and accepts by id, while user A can't accept B's invitation (`404`). Then ownership goes to B and both orgs are deleted. The negative cases are: unverified login, empty name, owner-role invite, invalid email, wrong-email accept, accepting twice, inviting an existing member, a replaced link (`410`), admin inviting an admin, cancelled and invalid tokens, admin removing the owner or deleting the org, member and viewer permission errors, invalid role, the last owner demoting or leaving, cross-org access (`404`), wrong transfer password and a viewer attempting a transfer. Expired invitations can't be simulated in Postman, because it can't move time forward; `npm test` covers them.
